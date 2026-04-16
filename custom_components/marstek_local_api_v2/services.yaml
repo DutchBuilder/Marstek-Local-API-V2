@@ -1,0 +1,147 @@
+request_sync:
+  name: Request Sync
+  description: Trigger an immediate data refresh for one or all devices.
+  fields:
+    device_id:
+      name: Device ID
+      description: "BLE MAC address of the target device (optional, leave empty for all)"
+      required: false
+      example: "abc123def456"
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: "Config entry ID (optional)"
+      required: false
+      selector:
+        text:
+
+set_manual_schedule:
+  name: Set Manual Schedule Slot
+  description: Configure a single manual schedule slot on a Marstek device.
+  fields:
+    device_id:
+      name: Device ID
+      description: BLE MAC address of the target device.
+      required: true
+      example: "abc123def456"
+      selector:
+        text:
+    time_num:
+      name: Slot Number
+      description: Schedule slot number (0-9).
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 9
+          mode: box
+    start_time:
+      name: Start Time
+      description: Start time in HH:MM format.
+      required: true
+      example: "08:00"
+      selector:
+        time:
+    end_time:
+      name: End Time
+      description: End time in HH:MM format.
+      required: true
+      example: "20:00"
+      selector:
+        time:
+    days:
+      name: Days
+      description: "Weekday bitmask (1-127). Monday=1, Tuesday=2, Wednesday=4, Thursday=8, Friday=16, Saturday=32, Sunday=64. All days=127."
+      required: false
+      default: 127
+      example: 127
+      selector:
+        number:
+          min: 1
+          max: 127
+          mode: box
+    power:
+      name: Power (W)
+      description: "Power in watts. Negative = charging (e.g. -2000), Positive = discharging (e.g. 3000), 0 = no limit."
+      required: false
+      default: 0
+      example: -2400
+      selector:
+        number:
+          min: -10000
+          max: 10000
+          mode: box
+    enabled:
+      name: Enabled
+      description: Whether this slot is active.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+set_manual_schedules:
+  name: Set Multiple Manual Schedules
+  description: Configure multiple schedule slots at once.
+  fields:
+    device_id:
+      name: Device ID
+      description: BLE MAC address of the target device.
+      required: true
+      selector:
+        text:
+    schedules:
+      name: Schedules
+      description: List of schedule objects.
+      required: true
+      example: |
+        - time_num: 0
+          start_time: "08:00"
+          end_time: "10:00"
+          power: -2400
+          enabled: true
+      selector:
+        object:
+
+clear_manual_schedules:
+  name: Clear All Manual Schedules
+  description: Disable all 10 schedule slots on a device.
+  fields:
+    device_id:
+      name: Device ID
+      description: BLE MAC address of the target device.
+      required: true
+      selector:
+        text:
+
+set_passive_mode:
+  name: Set Passive Mode
+  description: Enable passive mode with direct power and duration control.
+  fields:
+    device_id:
+      name: Device ID
+      description: BLE MAC address of the target device.
+      required: true
+      selector:
+        text:
+    power:
+      name: Power (W)
+      description: "Power in watts. Negative = charging, Positive = discharging. Range: -10000 to +10000."
+      required: true
+      example: -5000
+      selector:
+        number:
+          min: -10000
+          max: 10000
+          mode: box
+    duration:
+      name: Duration (seconds)
+      description: "How long to run in passive mode. Range: 1 to 86400 (24h)."
+      required: true
+      example: 3600
+      selector:
+        number:
+          min: 1
+          max: 86400
+          mode: box

@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Marstek Local API V2",
+        "description": "Marstek battery integration (Rev 2.0 API). Searching for devices..."
+      },
+      "discovery": {
+        "title": "Discovered Devices",
+        "description": "Found {count} Marstek device(s). Select which to add.",
+        "data": {
+          "devices": "Select devices"
+        }
+      },
+      "manual": {
+        "title": "Manual Configuration",
+        "description": "No devices found via broadcast. Enter the IP address manually.",
+        "data": {
+          "host": "IP Address",
+          "port": "UDP Port"
+        }
+      },
+      "name_devices": {
+        "title": "Device Names",
+        "description": "Enter friendly names for each device."
+      },
+      "options_initial": {
+        "title": "Optional Configuration",
+        "description": "Configure optional entity references for cost sensors and planning. Leave empty to skip.",
+        "data": {
+          "scan_interval": "Update interval (seconds, default: 30)",
+          "electricity_price_entity": "Electricity price entity (€/kWh, for cost sensors)",
+          "grid_power_entity": "Grid import power entity (W, for solar/grid share)",
+          "market_price_entity": "Market price entity with hourly 'prices' attribute (for plan sensors)",
+          "energy_tax_entity": "Energy tax entity (€/kWh excl. BTW)",
+          "procurement_fee_entity": "Procurement fee entity (€/kWh)",
+          "plan_hours_entity": "Plan hours entity (number of hours)",
+          "min_spread_entity": "Min spread entity (€/kWh)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to device. Check IP address and port.",
+      "no_devices_selected": "Please select at least one device.",
+      "already_configured": "This device is already configured."
+    },
+    "abort": {
+      "already_configured": "Device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Marstek Options",
+        "data": {
+          "scan_interval": "Update interval (seconds, min: 10)",
+          "electricity_price_entity": "Electricity price entity (€/kWh)",
+          "grid_power_entity": "Grid import power entity (W)",
+          "market_price_entity": "Market price entity (with hourly prices attribute)",
+          "energy_tax_entity": "Energy tax entity (€/kWh)",
+          "procurement_fee_entity": "Procurement fee entity (€/kWh)",
+          "plan_hours_entity": "Plan hours entity",
+          "min_spread_entity": "Min spread entity (€/kWh)"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+# Sensitive / local-only files
+Do_Not_Add_To_Github_configuration.yaml
+MarstekAPIRev2.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE
+.vscode/
+.idea/
