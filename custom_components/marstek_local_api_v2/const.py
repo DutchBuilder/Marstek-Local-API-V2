@@ -2,18 +2,33 @@
 
 DOMAIN = "marstek_local_api_v2"
 CONF_PORT = "port"
+
+# Entity references (dynamic sensors)
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
 CONF_GRID_POWER_ENTITY = "grid_power_entity"
 CONF_MARKET_PRICE_ENTITY = "market_price_entity"
-CONF_ENERGY_TAX_ENTITY = "energy_tax_entity"
-CONF_PROCUREMENT_FEE_ENTITY = "procurement_fee_entity"
-CONF_PLAN_HOURS_ENTITY = "plan_hours_entity"
-CONF_MIN_SPREAD_ENTITY = "min_spread_entity"
+
+# Direct numeric values (entered in config flow)
+CONF_ENERGY_TAX = "energy_tax"              # €/kWh excl. BTW
+CONF_PROCUREMENT_FEE = "procurement_fee"    # €/kWh inkoopvergoeding
+CONF_PLAN_HOURS = "plan_hours"              # aantal uren laden/ontladen
+CONF_MIN_SPREAD = "min_spread"              # minimum prijsverschil €/kWh
+CONF_MAX_CHARGE_WATTS = "max_charge_watts"        # W per batterij
+CONF_MAX_DISCHARGE_WATTS = "max_discharge_watts"  # W per batterij
+
 CONF_DOD = "dod_value"
 
 DEFAULT_PORT = 30000
 DEFAULT_SCAN_INTERVAL = 30  # seconds
 DEFAULT_DOD = 88  # API default, range 30-88
+
+# Plan defaults
+DEFAULT_ENERGY_TAX = 0.0
+DEFAULT_PROCUREMENT_FEE = 0.0166
+DEFAULT_PLAN_HOURS = 3
+DEFAULT_MIN_SPREAD = 0.062
+DEFAULT_MAX_CHARGE_WATTS = 800
+DEFAULT_MAX_DISCHARGE_WATTS = 800
 
 # Update tier multipliers (at 30s base interval)
 UPDATE_TIER_FAST = 1       # every update   → 30s

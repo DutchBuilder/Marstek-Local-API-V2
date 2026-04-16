@@ -41,13 +41,21 @@ from .const import (
     CONF_DEVICE_NAME,
     CONF_DOD,
     CONF_ELECTRICITY_PRICE_ENTITY,
-    CONF_ENERGY_TAX_ENTITY,
+    CONF_ENERGY_TAX,
     CONF_GRID_POWER_ENTITY,
     CONF_MARKET_PRICE_ENTITY,
-    CONF_MIN_SPREAD_ENTITY,
-    CONF_PLAN_HOURS_ENTITY,
-    CONF_PROCUREMENT_FEE_ENTITY,
+    CONF_MAX_CHARGE_WATTS,
+    CONF_MAX_DISCHARGE_WATTS,
+    CONF_MIN_SPREAD,
+    CONF_PLAN_HOURS,
+    CONF_PROCUREMENT_FEE,
     DEFAULT_DOD,
+    DEFAULT_ENERGY_TAX,
+    DEFAULT_MAX_CHARGE_WATTS,
+    DEFAULT_MAX_DISCHARGE_WATTS,
+    DEFAULT_MIN_SPREAD,
+    DEFAULT_PLAN_HOURS,
+    DEFAULT_PROCUREMENT_FEE,
     DOMAIN,
     MODELS_WITH_PV,
 )
@@ -1370,10 +1378,12 @@ class MarstekPlanSensor(
         hass: HomeAssistant,
         is_tomorrow: bool,
         market_price_entity: str | None,
-        energy_tax_entity: str | None,
-        procurement_fee_entity: str | None,
-        plan_hours_entity: str | None,
-        min_spread_entity: str | None,
+        energy_tax: float,
+        procurement_fee: float,
+        plan_hours: int,
+        min_spread: float,
+        max_charge_watts: int,
+        max_discharge_watts: int,
     ) -> None:
         super().__init__(coordinator)
         day = "morgen" if is_tomorrow else "vandaag"
@@ -1382,29 +1392,19 @@ class MarstekPlanSensor(
         self._hass = hass
         self._is_tomorrow = is_tomorrow
         self._market_entity = market_price_entity
-        self._tax_entity = energy_tax_entity
-        self._fee_entity = procurement_fee_entity
-        self._plan_hours_entity = plan_hours_entity
-        self._min_spread_entity = min_spread_entity
+        self._energy_tax = energy_tax
+        self._procurement_fee = procurement_fee
+        self._plan_hours = plan_hours
+        self._min_spread = min_spread
+        self._max_charge_watts = max_charge_watts
+        self._max_discharge_watts = max_discharge_watts
 
     @property
     def available(self) -> bool:
         return bool(self._market_entity)
 
-    def _get_float_entity(self, entity_id: str | None, default: float) -> float:
-        if not entity_id:
-            return default
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state in ("unknown", "unavailable"):
-            return default
-        try:
-            return float(state.state)
-        except (TypeError, ValueError):
-            return default
-
     def _compute_plan(self) -> dict:
         """Core plan computation. Delegates to shared plan_utils.compute_plan()."""
-        # Derive fleet size from the multi-coordinator's device data
         devices = self.coordinator.data.get("devices", {}) if self.coordinator.data else {}
         num_batteries = len(devices) if devices else 3
         agg = self.coordinator.get_aggregates()
@@ -1415,12 +1415,13 @@ class MarstekPlanSensor(
             self._hass,
             self._is_tomorrow,
             self._market_entity,
-            self._tax_entity,
-            self._fee_entity,
-            self._plan_hours_entity,
-            self._min_spread_entity,
+            energy_tax=self._energy_tax,
+            procurement_fee=self._procurement_fee,
+            plan_hours=self._plan_hours,
+            min_spread=self._min_spread,
             num_batteries=num_batteries,
-            watts_per_bat=800,
+            max_charge_watts_per_bat=self._max_charge_watts,
+            max_discharge_watts_per_bat=self._max_discharge_watts,
             capacity_kwh=capacity_kwh,
         )
 
@@ -1485,6 +1486,78 @@ class MarstekPlanSensor(
         }
 
 
+class MarstekPlanWattSensor(
+    CoordinatorEntity[MarstekMultiDeviceCoordinator], SensorEntity
+):
+    """
+    Exposes the charge or discharge wattage setpoint from today's plan.
+    Useful for automations that set the battery power via a service call.
+    """
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: MarstekMultiDeviceCoordinator,
+        entry_id: str,
+        hass: HomeAssistant,
+        is_charge: bool,
+        market_price_entity: str | None,
+        energy_tax: float,
+        procurement_fee: float,
+        plan_hours: int,
+        min_spread: float,
+        max_charge_watts: int,
+        max_discharge_watts: int,
+    ) -> None:
+        super().__init__(coordinator)
+        kind = "laad" if is_charge else "ontlaad"
+        self._attr_unique_id = f"{entry_id}_marstek_plan_{kind}vermogen"
+        self._attr_name = f"Marstek plan {kind}vermogen"
+        self._attr_icon = "mdi:battery-plus" if is_charge else "mdi:battery-minus"
+        self._hass = hass
+        self._is_charge = is_charge
+        self._market_entity = market_price_entity
+        self._energy_tax = energy_tax
+        self._procurement_fee = procurement_fee
+        self._plan_hours = plan_hours
+        self._min_spread = min_spread
+        self._max_charge_watts = max_charge_watts
+        self._max_discharge_watts = max_discharge_watts
+
+    @property
+    def available(self) -> bool:
+        return bool(self._market_entity)
+
+    @property
+    def native_value(self) -> float | None:
+        if not self._market_entity:
+            return None
+        devices = self.coordinator.data.get("devices", {}) if self.coordinator.data else {}
+        num_batteries = len(devices) if devices else 3
+        agg = self.coordinator.get_aggregates()
+        total_rated_wh = agg.get("total_rated_capacity_wh") or (num_batteries * 5120)
+
+        plan = compute_plan(
+            self._hass, False, self._market_entity,
+            energy_tax=self._energy_tax,
+            procurement_fee=self._procurement_fee,
+            plan_hours=self._plan_hours,
+            min_spread=self._min_spread,
+            num_batteries=num_batteries,
+            max_charge_watts_per_bat=self._max_charge_watts,
+            max_discharge_watts_per_bat=self._max_discharge_watts,
+            capacity_kwh=total_rated_wh / 1000,
+        )
+        if not plan:
+            return None
+        key = "charge_watts_total" if self._is_charge else "discharge_watts_total"
+        return float(plan.get(key, 0))
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Platform setup
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1507,10 +1580,12 @@ async def async_setup_entry(
     price_entity = options.get(CONF_ELECTRICITY_PRICE_ENTITY)
     grid_power_entity = options.get(CONF_GRID_POWER_ENTITY)
     market_entity = options.get(CONF_MARKET_PRICE_ENTITY)
-    tax_entity = options.get(CONF_ENERGY_TAX_ENTITY)
-    fee_entity = options.get(CONF_PROCUREMENT_FEE_ENTITY)
-    plan_hours_entity = options.get(CONF_PLAN_HOURS_ENTITY)
-    min_spread_entity = options.get(CONF_MIN_SPREAD_ENTITY)
+    energy_tax = float(options.get(CONF_ENERGY_TAX, DEFAULT_ENERGY_TAX))
+    procurement_fee = float(options.get(CONF_PROCUREMENT_FEE, DEFAULT_PROCUREMENT_FEE))
+    plan_hours = int(options.get(CONF_PLAN_HOURS, DEFAULT_PLAN_HOURS))
+    min_spread = float(options.get(CONF_MIN_SPREAD, DEFAULT_MIN_SPREAD))
+    max_charge_watts = int(options.get(CONF_MAX_CHARGE_WATTS, DEFAULT_MAX_CHARGE_WATTS))
+    max_discharge_watts = int(options.get(CONF_MAX_DISCHARGE_WATTS, DEFAULT_MAX_DISCHARGE_WATTS))
 
     entities: list[SensorEntity] = []
     cost_sensors: dict[str, AccumulatedCostSensor] = {}
@@ -1654,17 +1729,28 @@ async def async_setup_entry(
 
     # Marstek plan sensors (only if market price entity configured)
     if market_entity:
+        _plan_kwargs = dict(
+            market_price_entity=market_entity,
+            energy_tax=energy_tax,
+            procurement_fee=procurement_fee,
+            plan_hours=plan_hours,
+            min_spread=min_spread,
+            max_charge_watts=max_charge_watts,
+            max_discharge_watts=max_discharge_watts,
+        )
         entities.extend(
             [
                 MarstekPlanSensor(
-                    multi_coordinator, entry.entry_id, hass,
-                    False, market_entity, tax_entity, fee_entity,
-                    plan_hours_entity, min_spread_entity
+                    multi_coordinator, entry.entry_id, hass, False, **_plan_kwargs
                 ),
                 MarstekPlanSensor(
-                    multi_coordinator, entry.entry_id, hass,
-                    True, market_entity, tax_entity, fee_entity,
-                    plan_hours_entity, min_spread_entity
+                    multi_coordinator, entry.entry_id, hass, True, **_plan_kwargs
+                ),
+                MarstekPlanWattSensor(
+                    multi_coordinator, entry.entry_id, hass, True, **_plan_kwargs
+                ),
+                MarstekPlanWattSensor(
+                    multi_coordinator, entry.entry_id, hass, False, **_plan_kwargs
                 ),
             ]
         )
