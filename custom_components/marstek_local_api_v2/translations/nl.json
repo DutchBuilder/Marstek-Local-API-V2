@@ -1,0 +1,68 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Marstek Local API V2",
+        "description": "Zoeken naar Marstek apparaten in uw netwerk..."
+      },
+      "discovery": {
+        "title": "Gevonden apparaten",
+        "description": "{count} Marstek apparaat/apparaten gevonden. Selecteer welke u wilt toevoegen.",
+        "data": {
+          "devices": "Apparaten"
+        }
+      },
+      "manual": {
+        "title": "Handmatige configuratie",
+        "description": "Geen apparaten automatisch gevonden. Voer het IP-adres in.",
+        "data": {
+          "host": "IP-adres",
+          "port": "UDP-poort (standaard: 30000)"
+        }
+      },
+      "name_devices": {
+        "title": "Apparaatnamen",
+        "description": "Stel een naam in voor elk apparaat."
+      },
+      "options_initial": {
+        "title": "Optionele instellingen",
+        "description": "Configureer optionele entiteitsverwijzingen. Laat leeg om over te slaan.",
+        "data": {
+          "scan_interval": "Updateinterval (seconden)",
+          "electricity_price_entity": "Stroomprijs sensor entiteit (€/kWh) – voor kosten/opbrengst sensors",
+          "grid_power_entity": "Netimport vermogen sensor (W) – voor zon/net aandeel berekening",
+          "market_price_entity": "Marktprijs sensor met uurprijzen 'prices' attribuut – voor plan sensors",
+          "energy_tax_entity": "Energiebelasting sensor (€/kWh excl. BTW)",
+          "procurement_fee_entity": "Inkoopvergoeding sensor (€/kWh)",
+          "plan_hours_entity": "Plan uren entiteit (bijv. input_number.marstek_plan_hours)",
+          "min_spread_entity": "Min spread entiteit (€/kWh)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbinding mislukt. Controleer het IP-adres en de UDP-poort.",
+      "no_devices_selected": "Selecteer ten minste één apparaat.",
+      "already_configured": "Dit apparaat is al geconfigureerd."
+    },
+    "abort": {
+      "already_configured": "Apparaat is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Marstek Local API V2 Opties",
+        "data": {
+          "scan_interval": "Updateinterval (seconden, minimaal: 10)",
+          "electricity_price_entity": "Stroomprijs sensor (€/kWh)",
+          "grid_power_entity": "Netimport vermogen sensor (W)",
+          "market_price_entity": "Marktprijs sensor (met uurprijzen attribuut)",
+          "energy_tax_entity": "Energiebelasting sensor (€/kWh)",
+          "procurement_fee_entity": "Inkoopvergoeding sensor (€/kWh)",
+          "plan_hours_entity": "Plan uren entiteit",
+          "min_spread_entity": "Min spread entiteit (€/kWh)"
+        }
+      }
+    }
+  }
+}
