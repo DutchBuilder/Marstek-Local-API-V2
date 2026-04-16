@@ -270,7 +270,19 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(schema_fields),
         )
 
+    def _existing_options(self) -> dict:
+        """Return options from the first existing config entry, if any."""
+        existing = self.hass.config_entries.async_entries(DOMAIN)
+        if existing:
+            return dict(existing[0].options)
+        return {}
+
     async def async_step_options_initial(self, user_input: dict | None = None) -> FlowResult:
+        # Pre-fill options from an existing entry so the user doesn't have to
+        # retype everything when adding a second or third battery.
+        prefill = self._existing_options()
+        is_first_battery = not bool(prefill)
+
         if user_input is not None:
             devices_data = [
                 {
@@ -299,12 +311,19 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title=title,
                 data={CONF_DEVICES: devices_data},
-                options=_clean_options(user_input, {}),
+                options=_clean_options(user_input, prefill),
             )
+
+        if not is_first_battery:
+            # Subsequent battery: show the form pre-filled so user just confirms
+            description = "Instellingen zijn overgenomen van uw bestaande Marstek configuratie. Controleer en klik Verzenden om te bevestigen."
+        else:
+            description = None
 
         return self.async_show_form(
             step_id="options_initial",
-            data_schema=_options_schema({}),
+            data_schema=_options_schema(prefill),
+            description_placeholders={"prefill_note": description or ""},
         )
 
     @staticmethod

@@ -26,16 +26,18 @@
       },
       "options_initial": {
         "title": "Optionele instellingen",
-        "description": "Configureer optionele entiteitsverwijzingen voor kosten/opbrengst berekeningen en planning. U kunt dit later altijd aanpassen via Opties.",
+        "description": "Configureer optionele instellingen voor kosten/opbrengst berekeningen en planning. U kunt dit later altijd aanpassen via Opties.\n{prefill_note}",
         "data": {
           "scan_interval": "Updateinterval (seconden, minimaal 10)",
           "electricity_price_entity": "Stroomprijs sensor (€/kWh, all-in incl. belastingen) – voor kosten/opbrengst sensors",
           "grid_power_entity": "P1 meter vermogen sensor (W) – actief vermogen van/naar het net, positief bij import. Bijv. sensor.p1_meter_xxxxx_active_power",
-          "market_price_entity": "Marktprijs sensor met uurprijzen – sensor met 'prices' attribuut (bijv. Nordpool of EPEX). Gebruikt voor plan sensors en stroomprijs berekening.",
-          "energy_tax_entity": "Energiebelasting sensor (€/kWh excl. BTW) – bijv. input_number.energiebelasting_kwh",
-          "procurement_fee_entity": "Inkoopvergoeding sensor (€/kWh) – vergoeding van uw leverancier bij teruglevering, bijv. input_number.inkoopvergoeding_kwh",
-          "plan_hours_entity": "Plan uren entiteit – aantal uren laden/ontladen per dag, bijv. input_number.input_number_marstek_plan_hours (standaard: 6)",
-          "min_spread_entity": "Min spread entiteit (€/kWh) – minimaal prijsverschil voor winstgevend laden/ontladen, bijv. input_number.input_number_marstek_min_spread (standaard: 0.062)"
+          "market_price_entity": "Marktprijs sensor met uurprijzen – sensor met 'prices' attribuut (bijv. Nordpool of EPEX). Gebruikt voor plan sensors.",
+          "energy_tax": "Energiebelasting (€/kWh excl. BTW)",
+          "procurement_fee": "Inkoopvergoeding (€/kWh) – vergoeding van uw leverancier bij teruglevering",
+          "plan_hours": "Plan uren – aantal uren laden/ontladen per dag",
+          "min_spread": "Min spread (€/kWh) – minimaal prijsverschil voor winstgevend laden/ontladen",
+          "max_charge_watts": "Max laadvermogen per batterij (W)",
+          "max_discharge_watts": "Max ontlaadvermogen per batterij (W)"
         }
       }
     },
@@ -57,10 +59,12 @@
           "electricity_price_entity": "Stroomprijs sensor (€/kWh, all-in incl. belastingen)",
           "grid_power_entity": "P1 meter vermogen sensor (W) – actief vermogen van/naar het net, positief bij import",
           "market_price_entity": "Marktprijs sensor met uurprijzen 'prices' attribuut (bijv. Nordpool/EPEX)",
-          "energy_tax_entity": "Energiebelasting sensor (€/kWh excl. BTW)",
-          "procurement_fee_entity": "Inkoopvergoeding sensor (€/kWh)",
-          "plan_hours_entity": "Plan uren entiteit (standaard: 6 uur)",
-          "min_spread_entity": "Min spread entiteit (€/kWh, standaard: 0.062)"
+          "energy_tax": "Energiebelasting (€/kWh excl. BTW)",
+          "procurement_fee": "Inkoopvergoeding (€/kWh)",
+          "plan_hours": "Plan uren (aantal uren laden/ontladen per dag)",
+          "min_spread": "Min spread (€/kWh, minimaal prijsverschil)",
+          "max_charge_watts": "Max laadvermogen per batterij (W)",
+          "max_discharge_watts": "Max ontlaadvermogen per batterij (W)"
         }
       }
     }
