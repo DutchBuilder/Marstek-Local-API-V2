@@ -14,7 +14,7 @@
       },
       "manual": {
         "title": "Manual Configuration",
-        "description": "No devices found automatically. Enter the device IP address.",
+        "description": "No devices found automatically. Enter the IP address of your Marstek battery (find it in your router or the Marstek app).",
         "data": {
           "host": "IP Address",
           "port": "UDP Port (default: 30000)"
@@ -26,16 +26,16 @@
       },
       "options_initial": {
         "title": "Optional Settings",
-        "description": "Configure optional entity references. Leave empty to skip.",
+        "description": "Configure optional entity references for cost/revenue calculations and planning. You can change these later via Options.",
         "data": {
-          "scan_interval": "Update interval (seconds)",
-          "electricity_price_entity": "Electricity price sensor entity (€/kWh) – used for cost/revenue sensors",
-          "grid_power_entity": "Grid import power sensor entity (W) – for solar/grid share calculation",
-          "market_price_entity": "Market price sensor with hourly 'prices' attribute – for plan sensors",
-          "energy_tax_entity": "Energy tax sensor entity (€/kWh excl. VAT)",
-          "procurement_fee_entity": "Procurement fee sensor entity (€/kWh)",
-          "plan_hours_entity": "Plan hours entity (e.g. input_number.marstek_plan_hours)",
-          "min_spread_entity": "Min spread entity (€/kWh, e.g. input_number.marstek_min_spread)"
+          "scan_interval": "Update interval (seconds, minimum 10)",
+          "electricity_price_entity": "Electricity price sensor (€/kWh, all-in incl. taxes) – used for cost/revenue sensors",
+          "grid_power_entity": "P1 meter power sensor (W) – grid active power, positive = importing from grid. E.g. sensor.p1_meter_xxxxx_active_power",
+          "market_price_entity": "Market price sensor with hourly prices – sensor with 'prices' attribute (e.g. Nordpool or EPEX). Used for plan sensors and price calculation.",
+          "energy_tax_entity": "Energy tax sensor (€/kWh excl. VAT) – e.g. input_number.energiebelasting_kwh",
+          "procurement_fee_entity": "Procurement fee sensor (€/kWh) – feed-in compensation from your supplier, e.g. input_number.inkoopvergoeding_kwh",
+          "plan_hours_entity": "Plan hours entity – number of charge/discharge hours per day, e.g. input_number.marstek_plan_hours (default: 6)",
+          "min_spread_entity": "Min spread entity (€/kWh) – minimum price difference for profitable charge/discharge, e.g. input_number.marstek_min_spread (default: 0.062)"
         }
       }
     },
@@ -53,14 +53,14 @@
       "init": {
         "title": "Marstek Local API V2 Options",
         "data": {
-          "scan_interval": "Update interval (seconds, minimum: 10)",
-          "electricity_price_entity": "Electricity price sensor (€/kWh)",
-          "grid_power_entity": "Grid import power sensor (W)",
-          "market_price_entity": "Market price sensor (with hourly prices attribute)",
-          "energy_tax_entity": "Energy tax sensor (€/kWh)",
+          "scan_interval": "Update interval (seconds, minimum 10)",
+          "electricity_price_entity": "Electricity price sensor (€/kWh, all-in incl. taxes)",
+          "grid_power_entity": "P1 meter power sensor (W) – grid active power, positive = importing",
+          "market_price_entity": "Market price sensor with hourly 'prices' attribute (e.g. Nordpool/EPEX)",
+          "energy_tax_entity": "Energy tax sensor (€/kWh excl. VAT)",
           "procurement_fee_entity": "Procurement fee sensor (€/kWh)",
-          "plan_hours_entity": "Plan hours entity",
-          "min_spread_entity": "Min spread entity (€/kWh)"
+          "plan_hours_entity": "Plan hours entity (default: 6 hours)",
+          "min_spread_entity": "Min spread entity (€/kWh, default: 0.062)"
         }
       }
     }
