@@ -21,6 +21,7 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    PLAN_SENSORS_ENTRY_KEY,
 )
 from .coordinator import MarstekDataUpdateCoordinator, MarstekMultiDeviceCoordinator
 from .services import async_setup_services, async_unload_services
@@ -112,6 +113,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_setup_services(hass)
         hass.data[DOMAIN][_SERVICES_SETUP_KEY] = True
 
+    # Claim plan sensors ownership for the first entry that is set up
+    if not hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY):
+        hass.data[DOMAIN][PLAN_SENSORS_ENTRY_KEY] = entry.entry_id
+
     # Register update listener for options changes
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -134,6 +139,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await coord.client.disconnect()
             except Exception:
                 pass
+
+        # Release plan sensors ownership if this entry held it
+        if hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id:
+            hass.data[DOMAIN].pop(PLAN_SENSORS_ENTRY_KEY, None)
 
         # Unload services if no entries remain (excluding meta keys)
         remaining = [k for k in hass.data[DOMAIN] if not k.startswith("_")]

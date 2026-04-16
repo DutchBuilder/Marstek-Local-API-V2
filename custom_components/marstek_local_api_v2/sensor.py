@@ -58,6 +58,7 @@ from .const import (
     DEFAULT_PROCUREMENT_FEE,
     DOMAIN,
     MODELS_WITH_PV,
+    PLAN_SENSORS_ENTRY_KEY,
 )
 from .coordinator import MarstekDataUpdateCoordinator, MarstekMultiDeviceCoordinator
 from .plan_utils import compute_plan, is_current_hour_in_slots
@@ -1294,16 +1295,16 @@ class StroomPrijsTotaalSensor(
         entry_id: str,
         hass: HomeAssistant,
         market_price_entity: str | None,
-        energy_tax_entity: str | None,
-        procurement_fee_entity: str | None,
+        energy_tax: float,
+        procurement_fee: float,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_stroomprijs_totaal"
         self._attr_name = "Stroomprijs Totaal"
         self._hass = hass
         self._market_entity = market_price_entity
-        self._tax_entity = energy_tax_entity
-        self._fee_entity = procurement_fee_entity
+        self._energy_tax = energy_tax
+        self._procurement_fee = procurement_fee
 
     @property
     def available(self) -> bool:
@@ -1317,8 +1318,6 @@ class StroomPrijsTotaalSensor(
         if market_state is None:
             return None
         prices = market_state.attributes.get("prices", [])
-        eb = self._get_float_entity(self._tax_entity, 0.0)
-        fee = self._get_float_entity(self._fee_entity, 0.0)
         btw = 1.21
         # Compute weighted average for current hour
         now = datetime.now(timezone.utc)
@@ -1346,18 +1345,7 @@ class StroomPrijsTotaalSensor(
                 spot = float(raw)
             except (TypeError, ValueError):
                 return None
-        return round((spot + eb + fee) * btw, 4)
-
-    def _get_float_entity(self, entity_id: str | None, default: float) -> float:
-        if not entity_id:
-            return default
-        state = self._hass.states.get(entity_id)
-        if state is None or state.state in ("unknown", "unavailable"):
-            return default
-        try:
-            return float(state.state)
-        except (TypeError, ValueError):
-            return default
+        return round((spot + self._energy_tax + self._procurement_fee) * btw, 4)
 
 
 class MarstekPlanSensor(
@@ -1718,17 +1706,21 @@ async def async_setup_entry(
         ]
     )
 
-    # Stroomprijs totaal (only if market price entity configured)
-    if market_entity:
+    # Plan sensors are created only by the first config entry that claims ownership.
+    # This prevents duplicate plan/price sensors when batteries are added one by one.
+    is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
+
+    # Stroomprijs totaal (only if market price entity configured and this is the plan entry)
+    if market_entity and is_plan_entry:
         entities.append(
             StroomPrijsTotaalSensor(
                 multi_coordinator, entry.entry_id, hass,
-                market_entity, tax_entity, fee_entity
+                market_entity, energy_tax, procurement_fee,
             )
         )
 
-    # Marstek plan sensors (only if market price entity configured)
-    if market_entity:
+    # Marstek plan sensors (only if market price entity configured and this is the plan entry)
+    if market_entity and is_plan_entry:
         _plan_kwargs = dict(
             market_price_entity=market_entity,
             energy_tax=energy_tax,

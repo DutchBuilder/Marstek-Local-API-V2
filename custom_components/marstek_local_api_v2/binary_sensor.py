@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_PLAN_HOURS,
     DEFAULT_PROCUREMENT_FEE,
     DOMAIN,
+    PLAN_SENSORS_ENTRY_KEY,
 )
 from .coordinator import MarstekDataUpdateCoordinator, MarstekMultiDeviceCoordinator
 from .plan_utils import compute_plan, is_current_hour_in_slots
@@ -274,8 +275,10 @@ async def async_setup_entry(
             )
         )
 
-    # ── Fleet-wide plan binary sensors (only when market price entity configured) ─
-    if market_entity:
+    # ── Fleet-wide plan binary sensors (only when market price entity configured
+    #    and this entry owns the plan sensors) ────────────────────────────────
+    is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
+    if market_entity and is_plan_entry:
         agg = multi_coordinator.get_aggregates()
         num_batteries = len(device_coordinators)
         total_rated_wh = agg.get("total_rated_capacity_wh") or (num_batteries * 5120)

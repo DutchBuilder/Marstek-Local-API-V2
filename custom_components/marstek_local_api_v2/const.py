@@ -102,6 +102,9 @@ CONF_DEVICE_MODEL = "device_model"
 CONF_FIRMWARE = "firmware"
 CONF_DEVICE_NAME = "device_name"
 
+# Meta key: which config entry "owns" the fleet-wide plan sensors
+PLAN_SENSORS_ENTRY_KEY = "_plan_sensors_entry_id"
+
 # Max schedule slots
 MAX_SCHEDULE_SLOTS = 10
 
