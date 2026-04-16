@@ -14,11 +14,19 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CATEGORY_FAST,
-    CONF_ENERGY_TAX_ENTITY,
+    CONF_ENERGY_TAX,
     CONF_MARKET_PRICE_ENTITY,
-    CONF_MIN_SPREAD_ENTITY,
-    CONF_PLAN_HOURS_ENTITY,
-    CONF_PROCUREMENT_FEE_ENTITY,
+    CONF_MAX_CHARGE_WATTS,
+    CONF_MAX_DISCHARGE_WATTS,
+    CONF_MIN_SPREAD,
+    CONF_PLAN_HOURS,
+    CONF_PROCUREMENT_FEE,
+    DEFAULT_ENERGY_TAX,
+    DEFAULT_MAX_CHARGE_WATTS,
+    DEFAULT_MAX_DISCHARGE_WATTS,
+    DEFAULT_MIN_SPREAD,
+    DEFAULT_PLAN_HOURS,
+    DEFAULT_PROCUREMENT_FEE,
     DOMAIN,
 )
 from .coordinator import MarstekDataUpdateCoordinator, MarstekMultiDeviceCoordinator
@@ -68,35 +76,41 @@ class MarstekBinarySensor(
         return None
 
 
-class MarstekMoetNuLadenSensor(
+class _MarstekPlanSlotSensor(
     CoordinatorEntity[MarstekMultiDeviceCoordinator], BinarySensorEntity
 ):
-    """True when the current hour is a scheduled charge slot in today's plan."""
-
-    _attr_icon = "mdi:battery-charging"
+    """Base for 'moet nu laden/ontladen' binary sensors."""
 
     def __init__(
         self,
         coordinator: MarstekMultiDeviceCoordinator,
         entry_id: str,
         hass: HomeAssistant,
+        is_charge: bool,
         market_entity: str | None,
-        tax_entity: str | None,
-        fee_entity: str | None,
-        plan_hours_entity: str | None,
-        min_spread_entity: str | None,
+        energy_tax: float,
+        procurement_fee: float,
+        plan_hours: int,
+        min_spread: float,
+        max_charge_watts: int,
+        max_discharge_watts: int,
         num_batteries: int,
         capacity_kwh: float,
     ) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{entry_id}_marstek_moet_nu_laden"
-        self._attr_name = "Marstek moet nu laden"
+        kind = "laden" if is_charge else "ontladen"
+        self._attr_unique_id = f"{entry_id}_marstek_moet_nu_{kind}"
+        self._attr_name = f"Marstek moet nu {kind}"
+        self._attr_icon = "mdi:battery-charging" if is_charge else "mdi:battery-arrow-down"
         self._hass = hass
+        self._is_charge = is_charge
         self._market_entity = market_entity
-        self._tax_entity = tax_entity
-        self._fee_entity = fee_entity
-        self._plan_hours_entity = plan_hours_entity
-        self._min_spread_entity = min_spread_entity
+        self._energy_tax = energy_tax
+        self._procurement_fee = procurement_fee
+        self._plan_hours = plan_hours
+        self._min_spread = min_spread
+        self._max_charge_watts = max_charge_watts
+        self._max_discharge_watts = max_discharge_watts
         self._num_batteries = num_batteries
         self._capacity_kwh = capacity_kwh
 
@@ -109,69 +123,30 @@ class MarstekMoetNuLadenSensor(
         if not self._market_entity:
             return None
         plan = compute_plan(
-            self._hass, False,
-            self._market_entity, self._tax_entity, self._fee_entity,
-            self._plan_hours_entity, self._min_spread_entity,
+            self._hass, False, self._market_entity,
+            energy_tax=self._energy_tax,
+            procurement_fee=self._procurement_fee,
+            plan_hours=self._plan_hours,
+            min_spread=self._min_spread,
             num_batteries=self._num_batteries,
-            watts_per_bat=800,
+            max_charge_watts_per_bat=self._max_charge_watts,
+            max_discharge_watts_per_bat=self._max_discharge_watts,
             capacity_kwh=self._capacity_kwh,
         )
         if not plan:
             return False
-        return is_current_hour_in_slots(plan.get("charge_slots", []))
+        slot_key = "charge_slots" if self._is_charge else "discharge_slots"
+        return is_current_hour_in_slots(plan.get(slot_key, []))
 
 
-class MarstekMoetNuOntladenSensor(
-    CoordinatorEntity[MarstekMultiDeviceCoordinator], BinarySensorEntity
-):
-    """True when the current hour is a scheduled discharge slot in today's plan."""
+class MarstekMoetNuLadenSensor(_MarstekPlanSlotSensor):
+    def __init__(self, coordinator, entry_id, hass, **kwargs) -> None:
+        super().__init__(coordinator, entry_id, hass, is_charge=True, **kwargs)
 
-    _attr_icon = "mdi:battery-arrow-down"
 
-    def __init__(
-        self,
-        coordinator: MarstekMultiDeviceCoordinator,
-        entry_id: str,
-        hass: HomeAssistant,
-        market_entity: str | None,
-        tax_entity: str | None,
-        fee_entity: str | None,
-        plan_hours_entity: str | None,
-        min_spread_entity: str | None,
-        num_batteries: int,
-        capacity_kwh: float,
-    ) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry_id}_marstek_moet_nu_ontladen"
-        self._attr_name = "Marstek moet nu ontladen"
-        self._hass = hass
-        self._market_entity = market_entity
-        self._tax_entity = tax_entity
-        self._fee_entity = fee_entity
-        self._plan_hours_entity = plan_hours_entity
-        self._min_spread_entity = min_spread_entity
-        self._num_batteries = num_batteries
-        self._capacity_kwh = capacity_kwh
-
-    @property
-    def available(self) -> bool:
-        return bool(self._market_entity)
-
-    @property
-    def is_on(self) -> bool | None:
-        if not self._market_entity:
-            return None
-        plan = compute_plan(
-            self._hass, False,
-            self._market_entity, self._tax_entity, self._fee_entity,
-            self._plan_hours_entity, self._min_spread_entity,
-            num_batteries=self._num_batteries,
-            watts_per_bat=800,
-            capacity_kwh=self._capacity_kwh,
-        )
-        if not plan:
-            return False
-        return is_current_hour_in_slots(plan.get("discharge_slots", []))
+class MarstekMoetNuOntladenSensor(_MarstekPlanSlotSensor):
+    def __init__(self, coordinator, entry_id, hass, **kwargs) -> None:
+        super().__init__(coordinator, entry_id, hass, is_charge=False, **kwargs)
 
 
 async def async_setup_entry(
@@ -188,10 +163,12 @@ async def async_setup_entry(
 
     options = entry.options
     market_entity = options.get(CONF_MARKET_PRICE_ENTITY)
-    tax_entity = options.get(CONF_ENERGY_TAX_ENTITY)
-    fee_entity = options.get(CONF_PROCUREMENT_FEE_ENTITY)
-    plan_hours_entity = options.get(CONF_PLAN_HOURS_ENTITY)
-    min_spread_entity = options.get(CONF_MIN_SPREAD_ENTITY)
+    energy_tax = float(options.get(CONF_ENERGY_TAX, DEFAULT_ENERGY_TAX))
+    procurement_fee = float(options.get(CONF_PROCUREMENT_FEE, DEFAULT_PROCUREMENT_FEE))
+    plan_hours = int(options.get(CONF_PLAN_HOURS, DEFAULT_PLAN_HOURS))
+    min_spread = float(options.get(CONF_MIN_SPREAD, DEFAULT_MIN_SPREAD))
+    max_charge_watts = int(options.get(CONF_MAX_CHARGE_WATTS, DEFAULT_MAX_CHARGE_WATTS))
+    max_discharge_watts = int(options.get(CONF_MAX_DISCHARGE_WATTS, DEFAULT_MAX_DISCHARGE_WATTS))
 
     entities = []
 
@@ -299,29 +276,23 @@ async def async_setup_entry(
 
     # ── Fleet-wide plan binary sensors (only when market price entity configured) ─
     if market_entity:
-        # Derive fleet size from coordinator data for plan computation
         agg = multi_coordinator.get_aggregates()
         num_batteries = len(device_coordinators)
         total_rated_wh = agg.get("total_rated_capacity_wh") or (num_batteries * 5120)
         capacity_kwh = total_rated_wh / 1000
 
-        entities.append(
-            MarstekMoetNuLadenSensor(
-                multi_coordinator, entry.entry_id, hass,
-                market_entity, tax_entity, fee_entity,
-                plan_hours_entity, min_spread_entity,
-                num_batteries=num_batteries,
-                capacity_kwh=capacity_kwh,
-            )
+        _plan_kwargs = dict(
+            market_entity=market_entity,
+            energy_tax=energy_tax,
+            procurement_fee=procurement_fee,
+            plan_hours=plan_hours,
+            min_spread=min_spread,
+            max_charge_watts=max_charge_watts,
+            max_discharge_watts=max_discharge_watts,
+            num_batteries=num_batteries,
+            capacity_kwh=capacity_kwh,
         )
-        entities.append(
-            MarstekMoetNuOntladenSensor(
-                multi_coordinator, entry.entry_id, hass,
-                market_entity, tax_entity, fee_entity,
-                plan_hours_entity, min_spread_entity,
-                num_batteries=num_batteries,
-                capacity_kwh=capacity_kwh,
-            )
-        )
+        entities.append(MarstekMoetNuLadenSensor(multi_coordinator, entry.entry_id, hass, **_plan_kwargs))
+        entities.append(MarstekMoetNuOntladenSensor(multi_coordinator, entry.entry_id, hass, **_plan_kwargs))
 
     async_add_entities(entities)

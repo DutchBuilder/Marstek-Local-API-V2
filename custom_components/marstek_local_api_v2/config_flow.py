@@ -1,36 +1,43 @@
 """Marstek Local API V2 – config flow."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
+from homeassistant.const import CONF_HOST, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
-from .api import MarstekUDPClient, discover_devices, validate_connection
+from .api import discover_devices, validate_connection
 from .const import (
     CONF_BLE_MAC,
     CONF_DEVICE_MODEL,
     CONF_DEVICE_NAME,
     CONF_DOD,
     CONF_ELECTRICITY_PRICE_ENTITY,
-    CONF_ENERGY_TAX_ENTITY,
+    CONF_ENERGY_TAX,
     CONF_FIRMWARE,
     CONF_GRID_POWER_ENTITY,
     CONF_MARKET_PRICE_ENTITY,
-    CONF_MIN_SPREAD_ENTITY,
-    CONF_PLAN_HOURS_ENTITY,
+    CONF_MAX_CHARGE_WATTS,
+    CONF_MAX_DISCHARGE_WATTS,
+    CONF_MIN_SPREAD,
+    CONF_PLAN_HOURS,
     CONF_PORT,
-    CONF_PROCUREMENT_FEE_ENTITY,
+    CONF_PROCUREMENT_FEE,
     CONF_WIFI_MAC,
     DEFAULT_DOD,
+    DEFAULT_ENERGY_TAX,
+    DEFAULT_MAX_CHARGE_WATTS,
+    DEFAULT_MAX_DISCHARGE_WATTS,
+    DEFAULT_MIN_SPREAD,
+    DEFAULT_PLAN_HOURS,
     DEFAULT_PORT,
+    DEFAULT_PROCUREMENT_FEE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -41,99 +48,118 @@ CONF_DEVICES = "devices"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Selector helpers
+# Schema builder
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _entity_selector(domain: str | None = None) -> selector.EntitySelector:
-    """Return an EntitySelector, optionally filtered to a domain."""
-    if domain:
-        return selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=domain)
-        )
-    return selector.EntitySelector(selector.EntitySelectorConfig())
-
-
 def _options_schema(current: dict[str, Any]) -> vol.Schema:
-    """
-    Build the options schema with EntitySelectors and suggested default values.
+    """Build the options schema with selectors and current/default values."""
 
-    Using suggested_value (description placeholder) instead of hard default so
-    users who don't have these entities aren't forced to clear them.
-    """
-    def _sv(key: str, fallback: str = "") -> dict:
-        """Return a description dict with suggested_value from current options or fallback."""
-        val = current.get(key) or fallback
-        return {"suggested_value": val} if val else {}
+    def _sv(key: str, fallback: Any = None) -> dict:
+        val = current.get(key, fallback)
+        return {"suggested_value": val} if val is not None else {}
 
     return vol.Schema(
         {
+            # ── Polling ─────────────────────────────────────────────────────
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
             ): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
 
-            # All-in electricity price (e.g. sensor.stroomprijs_totaal)
+            # ── Dynamic entity references ────────────────────────────────────
             vol.Optional(
                 CONF_ELECTRICITY_PRICE_ENTITY,
                 description=_sv(CONF_ELECTRICITY_PRICE_ENTITY),
             ): selector.EntitySelector(selector.EntitySelectorConfig()),
 
-            # P1 meter active power sensor (W) – positive = importing from grid
             vol.Optional(
                 CONF_GRID_POWER_ENTITY,
                 description=_sv(CONF_GRID_POWER_ENTITY),
             ): selector.EntitySelector(selector.EntitySelectorConfig()),
 
-            # Market price sensor with 'prices' attribute (Nordpool / EPEX)
             vol.Optional(
                 CONF_MARKET_PRICE_ENTITY,
                 description=_sv(CONF_MARKET_PRICE_ENTITY),
             ): selector.EntitySelector(selector.EntitySelectorConfig()),
 
-            # Energiebelasting excl. BTW (€/kWh) – default 0.0
+            # ── Direct numeric plan values ───────────────────────────────────
             vol.Optional(
-                CONF_ENERGY_TAX_ENTITY,
-                description=_sv(CONF_ENERGY_TAX_ENTITY, "input_number.energiebelasting_kwh"),
-            ): selector.EntitySelector(selector.EntitySelectorConfig()),
+                CONF_ENERGY_TAX,
+                default=current.get(CONF_ENERGY_TAX, DEFAULT_ENERGY_TAX),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0, max=0.5, step=0.0001,
+                    unit_of_measurement="€/kWh", mode="box",
+                )
+            ),
 
-            # Inkoopvergoeding (€/kWh) – default ~0.0166
             vol.Optional(
-                CONF_PROCUREMENT_FEE_ENTITY,
-                description=_sv(CONF_PROCUREMENT_FEE_ENTITY, "input_number.inkoopvergoeding_kwh"),
-            ): selector.EntitySelector(selector.EntitySelectorConfig()),
+                CONF_PROCUREMENT_FEE,
+                default=current.get(CONF_PROCUREMENT_FEE, DEFAULT_PROCUREMENT_FEE),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0, max=0.10, step=0.0001,
+                    unit_of_measurement="€/kWh", mode="box",
+                )
+            ),
 
-            # Number of charge/discharge hours for plan – default 6
             vol.Optional(
-                CONF_PLAN_HOURS_ENTITY,
-                description=_sv(
-                    CONF_PLAN_HOURS_ENTITY,
-                    "input_number.input_number_marstek_plan_hours",
-                ),
-            ): selector.EntitySelector(selector.EntitySelectorConfig()),
+                CONF_PLAN_HOURS,
+                default=current.get(CONF_PLAN_HOURS, DEFAULT_PLAN_HOURS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1, max=12, step=1,
+                    unit_of_measurement="uur", mode="slider",
+                )
+            ),
 
-            # Minimum price spread (€/kWh) – default 0.062
             vol.Optional(
-                CONF_MIN_SPREAD_ENTITY,
-                description=_sv(
-                    CONF_MIN_SPREAD_ENTITY,
-                    "input_number.input_number_marstek_min_spread",
-                ),
-            ): selector.EntitySelector(selector.EntitySelectorConfig()),
+                CONF_MIN_SPREAD,
+                default=current.get(CONF_MIN_SPREAD, DEFAULT_MIN_SPREAD),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0, max=0.5, step=0.001,
+                    unit_of_measurement="€/kWh", mode="box",
+                )
+            ),
+
+            # ── Battery power limits ─────────────────────────────────────────
+            vol.Optional(
+                CONF_MAX_CHARGE_WATTS,
+                default=current.get(CONF_MAX_CHARGE_WATTS, DEFAULT_MAX_CHARGE_WATTS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=100, max=800, step=50,
+                    unit_of_measurement="W per batterij", mode="slider",
+                )
+            ),
+
+            vol.Optional(
+                CONF_MAX_DISCHARGE_WATTS,
+                default=current.get(CONF_MAX_DISCHARGE_WATTS, DEFAULT_MAX_DISCHARGE_WATTS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=100, max=800, step=50,
+                    unit_of_measurement="W per batterij", mode="slider",
+                )
+            ),
         }
     )
 
 
-def _clean_options(user_input: dict[str, Any], scan_interval: int) -> dict[str, Any]:
-    """Normalise option values – replace None with empty string."""
+def _clean_options(user_input: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """Normalise and merge options – coerce numeric types."""
     return {
-        CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, scan_interval),
+        CONF_SCAN_INTERVAL: int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
         CONF_ELECTRICITY_PRICE_ENTITY: user_input.get(CONF_ELECTRICITY_PRICE_ENTITY) or "",
         CONF_GRID_POWER_ENTITY: user_input.get(CONF_GRID_POWER_ENTITY) or "",
         CONF_MARKET_PRICE_ENTITY: user_input.get(CONF_MARKET_PRICE_ENTITY) or "",
-        CONF_ENERGY_TAX_ENTITY: user_input.get(CONF_ENERGY_TAX_ENTITY) or "",
-        CONF_PROCUREMENT_FEE_ENTITY: user_input.get(CONF_PROCUREMENT_FEE_ENTITY) or "",
-        CONF_PLAN_HOURS_ENTITY: user_input.get(CONF_PLAN_HOURS_ENTITY) or "",
-        CONF_MIN_SPREAD_ENTITY: user_input.get(CONF_MIN_SPREAD_ENTITY) or "",
+        CONF_ENERGY_TAX: float(user_input.get(CONF_ENERGY_TAX, DEFAULT_ENERGY_TAX)),
+        CONF_PROCUREMENT_FEE: float(user_input.get(CONF_PROCUREMENT_FEE, DEFAULT_PROCUREMENT_FEE)),
+        CONF_PLAN_HOURS: int(user_input.get(CONF_PLAN_HOURS, DEFAULT_PLAN_HOURS)),
+        CONF_MIN_SPREAD: float(user_input.get(CONF_MIN_SPREAD, DEFAULT_MIN_SPREAD)),
+        CONF_MAX_CHARGE_WATTS: int(user_input.get(CONF_MAX_CHARGE_WATTS, DEFAULT_MAX_CHARGE_WATTS)),
+        CONF_MAX_DISCHARGE_WATTS: int(user_input.get(CONF_MAX_DISCHARGE_WATTS, DEFAULT_MAX_DISCHARGE_WATTS)),
     }
 
 
@@ -142,26 +168,19 @@ def _clean_options(user_input: dict[str, Any], scan_interval: int) -> dict[str, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle config flow for Marstek Local API V2."""
-
     VERSION = 1
 
     def __init__(self) -> None:
         self._discovered: list[dict[str, Any]] = []
         self._selected_devices: list[dict[str, Any]] = []
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
         return await self.async_step_discovery()
 
     async def async_step_dhcp(self, discovery_info: Any) -> FlowResult:
         return await self.async_step_discovery()
 
-    async def async_step_discovery(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Broadcast-discover devices and let user select."""
+    async def async_step_discovery(self, user_input: dict | None = None) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is None:
@@ -181,16 +200,12 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
                 for d in self._discovered
             ]
-
             return self.async_show_form(
                 step_id="discovery",
                 data_schema=vol.Schema(
                     {
                         vol.Required(CONF_DEVICES): selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=device_options,
-                                multiple=True,
-                            )
+                            selector.SelectSelectorConfig(options=device_options, multiple=True)
                         )
                     }
                 ),
@@ -201,19 +216,13 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
         self._selected_devices = [
             d for d in self._discovered if d["ble_mac"] in selected_macs
         ]
-
         if not self._selected_devices:
             errors["base"] = "no_devices_selected"
             return self.async_show_form(step_id="discovery", errors=errors)
-
         return await self.async_step_name_devices()
 
-    async def async_step_manual(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Manual IP entry fallback."""
+    async def async_step_manual(self, user_input: dict | None = None) -> FlowResult:
         errors: dict[str, str] = {}
-
         if user_input is not None:
             host = user_input[CONF_HOST]
             port = user_input.get(CONF_PORT, DEFAULT_PORT)
@@ -245,31 +254,23 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_name_devices(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Let user set friendly names for each device."""
+    async def async_step_name_devices(self, user_input: dict | None = None) -> FlowResult:
         if user_input is not None:
             for dev in self._selected_devices:
-                mac = dev["ble_mac"]
-                dev["device_name"] = user_input.get(f"name_{mac}", "")
+                dev["device_name"] = user_input.get(f"name_{dev['ble_mac']}", "")
             return await self.async_step_options_initial()
 
         schema_fields: dict[Any, Any] = {}
         for dev in self._selected_devices:
             mac = dev["ble_mac"]
-            default_name = f"Marstek {mac[-4:].upper()}"
-            schema_fields[vol.Optional(f"name_{mac}", default=default_name)] = str
+            schema_fields[vol.Optional(f"name_{mac}", default=f"Marstek {mac[-4:].upper()}")] = str
 
         return self.async_show_form(
             step_id="name_devices",
             data_schema=vol.Schema(schema_fields),
         )
 
-    async def async_step_options_initial(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Optional entity configuration."""
+    async def async_step_options_initial(self, user_input: dict | None = None) -> FlowResult:
         if user_input is not None:
             devices_data = [
                 {
@@ -284,7 +285,6 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 for dev in self._selected_devices
             ]
-
             unique_id = " ".join(sorted(d[CONF_BLE_MAC] for d in devices_data))
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
@@ -299,7 +299,7 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title=title,
                 data={CONF_DEVICES: devices_data},
-                options=_clean_options(user_input, DEFAULT_SCAN_INTERVAL),
+                options=_clean_options(user_input, {}),
             )
 
         return self.async_show_form(
@@ -318,26 +318,11 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class MarstekOptionsFlow(OptionsFlow):
-    """Handle options flow."""
-
     def __init__(self, config_entry: ConfigEntry) -> None:
         self.config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict | None = None) -> FlowResult:
         options = self.config_entry.options
-
         if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data=_clean_options(
-                    user_input,
-                    options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                ),
-            )
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=_options_schema(options),
-        )
+            return self.async_create_entry(title="", data=_clean_options(user_input, options))
+        return self.async_show_form(step_id="init", data_schema=_options_schema(options))
