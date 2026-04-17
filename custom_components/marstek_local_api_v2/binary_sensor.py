@@ -292,7 +292,7 @@ async def async_setup_entry(
     is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
     if market_entity and is_plan_entry:
         agg = multi_coordinator.get_aggregates()
-        num_batteries = len(device_coordinators)
+        num_batteries = len(multi_coordinator.device_coordinators)
         total_rated_wh = agg.get("total_rated_capacity_wh") or (num_batteries * 5120)
         capacity_kwh = total_rated_wh / 1000
 

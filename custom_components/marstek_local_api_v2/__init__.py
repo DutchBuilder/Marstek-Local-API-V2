@@ -39,6 +39,8 @@ PLATFORMS: list[Platform] = [
 
 # Key in hass.data[DOMAIN] for tracking whether services are set up
 _SERVICES_SETUP_KEY = "_services_set_up"
+# Key for the single domain-wide multi-device coordinator
+_GLOBAL_MULTI_KEY = "_global_multi_coordinator"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -97,17 +99,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_WIFI_MAC: dev.get(CONF_WIFI_MAC, ""),
         }
 
-    # Create multi-device coordinator (aggregator)
-    multi_coordinator = MarstekMultiDeviceCoordinator(
-        hass=hass,
-        device_coordinators=device_coordinators,
-        scan_interval=scan_interval,
-    )
-    await multi_coordinator.async_config_entry_first_refresh()
+    # Get or create the single domain-wide multi-device coordinator
+    global_multi: MarstekMultiDeviceCoordinator = hass.data[DOMAIN].get(_GLOBAL_MULTI_KEY)
+    if global_multi is None:
+        global_multi = MarstekMultiDeviceCoordinator(hass=hass)
+        hass.data[DOMAIN][_GLOBAL_MULTI_KEY] = global_multi
+
+    # Register this entry's devices; each add_device() subscribes to updates
+    for ble_mac, coord in device_coordinators.items():
+        global_multi.add_device(ble_mac, coord)
+
+    # Push the current aggregated snapshot so sensors have data immediately
+    global_multi.async_set_updated_data(global_multi._build_data())
 
     hass.data[DOMAIN][entry.entry_id] = {
         "device_coordinators": device_coordinators,
-        "multi_coordinator": multi_coordinator,
+        "multi_coordinator": global_multi,
         "devices_info": devices_info,
         "devices_config": devices_config,
     }
@@ -143,6 +150,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await coord.client.disconnect()
             except Exception:
                 pass
+
+        # Remove this entry's devices from the global multi-coordinator
+        global_multi = hass.data[DOMAIN].get(_GLOBAL_MULTI_KEY)
+        if global_multi:
+            for ble_mac in domain_data.get("device_coordinators", {}).keys():
+                global_multi.remove_device(ble_mac)
+            if not global_multi.device_coordinators:
+                hass.data[DOMAIN].pop(_GLOBAL_MULTI_KEY, None)
 
         # Release plan sensors ownership if this entry held it
         if hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id:

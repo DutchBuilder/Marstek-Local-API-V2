@@ -1733,7 +1733,7 @@ async def async_setup_entry(
                 entry.entry_id, fleet_device_info
             ),
             TotalBeschikbareKwhSensor(
-                multi_coordinator, device_coordinators, entry.entry_id, fleet_device_info
+                multi_coordinator, multi_coordinator.device_coordinators, entry.entry_id, fleet_device_info
             ),
             HaBatteryChargeSolarShareSensor(
                 multi_coordinator, entry.entry_id, hass, grid_power_entity, fleet_device_info
@@ -1742,11 +1742,11 @@ async def async_setup_entry(
                 multi_coordinator, entry.entry_id, hass, grid_power_entity, fleet_device_info
             ),
             BatterijverbruikKostenTotaalSensor(
-                multi_coordinator, device_coordinators, entry.entry_id,
+                multi_coordinator, multi_coordinator.device_coordinators, entry.entry_id,
                 hass, price_entity, cost_sensors, fleet_device_info
             ),
             BatterijverbruikOpbrengstTotaalSensor(
-                multi_coordinator, device_coordinators, entry.entry_id,
+                multi_coordinator, multi_coordinator.device_coordinators, entry.entry_id,
                 hass, price_entity, revenue_sensors, fleet_device_info
             ),
         ]
