@@ -18,6 +18,7 @@ from .const import (
     CONF_DEVICE_MODEL,
     CONF_DEVICE_NAME,
     CONF_DOD,
+    CONF_NEEDS_SOURCE_PORT,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_ENERGY_TAX,
     CONF_FIRMWARE,
@@ -240,6 +241,7 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
                         "ver": info.get("ver", 0),
                         "ip": host,
                         "port": port,
+                        "needs_source_port": bool(info.get("_needs_source_port", False)),
                     }
                 ]
                 return await self.async_step_name_devices()
@@ -307,6 +309,7 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_NAME: dev.get("device_name", ""),
                     CONF_HOST: dev.get("ip", ""),
                     CONF_PORT: dev.get("port", DEFAULT_PORT),
+                    CONF_NEEDS_SOURCE_PORT: dev.get("needs_source_port", False),
                     CONF_DOD: DEFAULT_DOD,
                 }
                 for dev in self._selected_devices

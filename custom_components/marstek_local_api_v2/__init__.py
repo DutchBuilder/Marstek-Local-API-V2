@@ -17,6 +17,7 @@ from .const import (
     CONF_DEVICE_NAME,
     CONF_DOD,
     CONF_FIRMWARE,
+    CONF_NEEDS_SOURCE_PORT,
     CONF_WIFI_MAC,
     DEFAULT_DOD,
     DEFAULT_PORT,
@@ -64,8 +65,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model = dev.get(CONF_DEVICE_MODEL, "Unknown")
         dod = dev.get(CONF_DOD, DEFAULT_DOD)
         device_name = dev.get(CONF_DEVICE_NAME, f"Marstek {ble_mac[-4:].upper()}")
+        needs_source_port = dev.get(CONF_NEEDS_SOURCE_PORT, False)
+        source_port = port if needs_source_port else None
 
-        client = MarstekUDPClient(host=host, port=port)
+        client = MarstekUDPClient(host=host, port=port, source_port=source_port)
         try:
             await client.connect()
         except Exception as err:
