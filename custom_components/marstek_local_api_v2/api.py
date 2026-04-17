@@ -44,9 +44,15 @@ class MarstekUDPClient:
     never interfere with each other.
     """
 
-    def __init__(self, host: str, port: int = DEFAULT_PORT) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int = DEFAULT_PORT,
+        source_port: int | None = None,
+    ) -> None:
         self.host = host
         self.port = port
+        self._source_port = source_port  # None → ephemeral; int → bind to fixed source port
         self._msg_id: int = 0
         self._sock: socket.socket | None = None
 
@@ -57,11 +63,22 @@ class MarstekUDPClient:
     async def connect(self) -> None:
         if self._sock is None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except AttributeError:
+                pass  # not available on all platforms (e.g. Windows)
+            if self._source_port is not None:
+                # Older firmware (e.g. VenusE fw 1573) only responds to packets
+                # whose source port equals its own listening port (30000).
+                sock.bind(("", self._source_port))
             # Non-blocking so the event loop can use it with sock_recvfrom.
-            # No fixed bind — OS assigns a unique ephemeral source port per device.
             sock.setblocking(False)
             self._sock = sock
-            _LOGGER.debug("UDP socket opened for %s:%d", self.host, self.port)
+            _LOGGER.debug(
+                "UDP socket opened for %s:%d (source_port=%s)",
+                self.host, self.port, self._source_port or "ephemeral",
+            )
 
     async def disconnect(self) -> None:
         if self._sock is not None:
@@ -431,10 +448,43 @@ async def validate_connection(host: str, port: int) -> dict[str, Any]:
             pass
 
         _LOGGER.warning(
-            "validate_connection %s:%d – no response to any command or raw probe; "
-            "check IP address, UDP port, and network path",
-            host, port,
+            "validate_connection %s:%d – no response on ephemeral source port; "
+            "retrying with source port bound to %d (older firmware workaround)",
+            host, port, port,
         )
-        raise OSError(f"No UDP response from {host}:{port} – device unreachable or wrong port")
     finally:
         await client.disconnect()
+
+    # ── Retry with source port == dest port (older firmware requirement) ────
+    client2 = MarstekUDPClient(host, port, source_port=port)
+    try:
+        await client2.connect()
+        for coro2, label2 in [
+            (lambda: client2.get_device_info(timeout=5.0, max_attempts=1), "Marstek.GetDevice"),
+            (lambda: client2.get_bat_status(timeout=5.0, max_attempts=1),  "Bat.GetStatus"),
+            (lambda: client2.get_es_status(timeout=5.0, max_attempts=1),   "ES.GetStatus"),
+        ]:
+            try:
+                result = await coro2()
+                _LOGGER.info(
+                    "validate_connection %s:%d – success via %s (source_port=%d): %s",
+                    host, port, label2, port, result,
+                )
+                result["_needs_source_port"] = True
+                return result
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:
+                _LOGGER.warning(
+                    "validate_connection %s:%d – %s no response (source_port=%d): %s",
+                    host, port, label2, port, err,
+                )
+    finally:
+        await client2.disconnect()
+
+    _LOGGER.warning(
+        "validate_connection %s:%d – no response to any command; "
+        "check IP address, UDP port, and network path",
+        host, port,
+    )
+    raise OSError(f"No UDP response from {host}:{port} – device unreachable or wrong port")
