@@ -373,53 +373,68 @@ def _discover_blocking(port: int, timeout: float) -> list[dict[str, Any]]:
 async def validate_connection(host: str, port: int) -> dict[str, Any]:
     """Validate connectivity and return device info.
 
-    Tries several Rev 2.0 commands in order.  If none elicit a valid
-    response, falls back to a raw probe: sends a packet and accepts
-    ANY bytes back (regardless of format).  This handles devices with
-    older firmware (e.g. Venus E2) that may use a different protocol.
+    Tries several commands in order.  If none elicit a valid JSON-RPC
+    response, falls back to a raw probe that accepts ANY bytes back.
+    This helps diagnose devices with unknown firmware (e.g. Venus E2).
 
     Returns device-info dict on success, {} when reachable but protocol
-    doesn't match, or raises if the device is truly unreachable.
+    doesn't match, or raises OSError if the device is truly unreachable.
     """
     client = MarstekUDPClient(host, port)
     loop = asyncio.get_running_loop()
+    _LOGGER.debug("validate_connection: connecting to %s:%d", host, port)
     try:
         await client.connect()
 
         # ── Try structured commands ──────────────────────────────────────
         for coro, label in [
-            (lambda: client.get_device_info(timeout=5.0, max_attempts=1), "GetDevice"),
-            (lambda: client.get_bat_status(timeout=5.0, max_attempts=1),  "BatStatus"),
-            (lambda: client.get_es_status(timeout=5.0, max_attempts=1),   "EsStatus"),
+            (lambda: client.get_device_info(timeout=5.0, max_attempts=1), "Marstek.GetDevice"),
+            (lambda: client.get_bat_status(timeout=5.0, max_attempts=1),  "Bat.GetStatus"),
+            (lambda: client.get_es_status(timeout=5.0, max_attempts=1),   "ES.GetStatus"),
         ]:
             try:
                 result = await coro()
-                _LOGGER.debug("validate_connection %s:%d OK via %s", host, port, label)
+                _LOGGER.info(
+                    "validate_connection %s:%d – success via %s: %s",
+                    host, port, label, result,
+                )
                 return result
+            except asyncio.CancelledError:
+                raise
             except Exception as err:
                 _LOGGER.warning(
-                    "validate_connection %s:%d – %s failed: %s", host, port, label, err
+                    "validate_connection %s:%d – %s no response: %s",
+                    host, port, label, err,
                 )
 
-        # ── Raw probe: accept any UDP packet from the device ─────────────
-        # Some older firmware variants respond with a non-standard format.
-        # Logging the raw bytes helps identify the protocol.
+        # ── Raw probe: send a packet and accept ANY bytes back ────────────
+        # Logs raw hex so we can identify unknown protocol variants.
         probe = json.dumps(
             {"id": 1, "method": METHOD_GET_DEVICE, "params": {"ble_mac": "0"}}
         ).encode()
+        _LOGGER.debug(
+            "validate_connection %s:%d – sending raw probe (%d bytes): %s",
+            host, port, len(probe), probe.decode(),
+        )
         client._sock.sendto(probe, (host, port))
         try:
-            raw, _ = await asyncio.wait_for(
+            raw, addr = await asyncio.wait_for(
                 loop.sock_recvfrom(client._sock, 4096), timeout=5.0
             )
             _LOGGER.warning(
-                "validate_connection %s:%d – raw response (unknown protocol): %s",
-                host, port, raw[:200],
+                "validate_connection %s:%d – raw response from %s (%d bytes): hex=%s text=%r",
+                host, port, addr, len(raw),
+                raw[:128].hex(), raw[:128],
             )
             return {}
         except asyncio.TimeoutError:
             pass
 
+        _LOGGER.warning(
+            "validate_connection %s:%d – no response to any command or raw probe; "
+            "check IP address, UDP port, and network path",
+            host, port,
+        )
         raise OSError(f"No UDP response from {host}:{port} – device unreachable or wrong port")
     finally:
         await client.disconnect()
