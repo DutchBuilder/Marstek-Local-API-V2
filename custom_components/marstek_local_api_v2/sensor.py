@@ -457,6 +457,7 @@ for _pv_idx in range(1, 5):
 class MarstekSensor(CoordinatorEntity[MarstekDataUpdateCoordinator], SensorEntity):
     """Sensor that reads from a single-device coordinator."""
 
+    _attr_has_entity_name = True
     entity_description: MarstekSensorDescription
 
     def __init__(
@@ -512,6 +513,7 @@ class BatterijverbruikGridPowerSensor(
     Negative when battery is exporting TO the grid.
     """
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -528,7 +530,7 @@ class BatterijverbruikGridPowerSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_grid_power"
-        self._attr_name = f"Batterijverbruik Grid Power ({suffix})"
+        self._attr_name = "Batterijverbruik Grid Power"
 
     @property
     def native_value(self) -> float | None:
@@ -547,6 +549,7 @@ class BeschikbareKwhSensor(
     reserve = rated_capacity_kWh * (1 - DOD/100).
     """
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
@@ -563,7 +566,7 @@ class BeschikbareKwhSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_beschikbare_kwh"
-        self._attr_name = f"Beschikbare kWh ({suffix})"
+        self._attr_name = "Beschikbare kWh"
 
     @property
     def native_value(self) -> float | None:
@@ -585,6 +588,7 @@ class BatteryChargePowerSensor(
 ):
     """HA Battery Charge Power = max(0, -ongrid_power)."""
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -601,7 +605,7 @@ class BatteryChargePowerSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_ha_battery_charge_power"
-        self._attr_name = f"HA Battery Charge Power ({suffix})"
+        self._attr_name = "HA Battery Charge Power"
 
     @property
     def native_value(self) -> float | None:
@@ -617,6 +621,7 @@ class BatteryDischargePowerSensor(
 ):
     """HA Battery Discharge Power = max(0, ongrid_power)."""
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -633,7 +638,7 @@ class BatteryDischargePowerSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_ha_battery_discharge_power"
-        self._attr_name = f"HA Battery Discharge Power ({suffix})"
+        self._attr_name = "HA Battery Discharge Power"
 
     @property
     def native_value(self) -> float | None:
@@ -653,6 +658,7 @@ class KostenrateSensor(
     Only positive when charging FROM grid (cost).
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "EUR/h"
     _attr_icon = "mdi:currency-eur"
@@ -670,7 +676,7 @@ class KostenrateSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_kostenrate"
-        self._attr_name = f"Batterijverbruik Kostenrate ({suffix})"
+        self._attr_name = "Batterijverbruik Kostenrate"
         self._hass = hass
         self._price_entity = price_entity
 
@@ -707,6 +713,7 @@ class KostenrateNetSensor(
     = kostenrate * (grid_share_% / 100)
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "EUR/h"
     _attr_icon = "mdi:currency-eur"
@@ -725,7 +732,7 @@ class KostenrateNetSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_kostenrate_net"
-        self._attr_name = f"Batterijverbruik Kostenrate Net ({suffix})"
+        self._attr_name = "Batterijverbruik Kostenrate Net"
         self._hass = hass
         self._price_entity = price_entity
         self._grid_share_uid = grid_share_sensor_uid
@@ -773,6 +780,7 @@ class OpbrengstrateSensor(
     Only positive when discharging TO grid (revenue).
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "EUR/h"
     _attr_icon = "mdi:currency-eur"
@@ -790,7 +798,7 @@ class OpbrengstrateSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_opbrengstrate"
-        self._attr_name = f"Batterijverbruik Opbrengstrate ({suffix})"
+        self._attr_name = "Batterijverbruik Opbrengstrate"
         self._hass = hass
         self._price_entity = price_entity
 
@@ -826,6 +834,7 @@ class AccumulatedCostSensor(
     Persists across HA restarts.
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "EUR"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -844,7 +853,7 @@ class AccumulatedCostSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_kosten"
-        self._attr_name = f"Batterijverbruik Kosten ({suffix})"
+        self._attr_name = "Batterijverbruik Kosten"
         self._hass = hass
         self._price_entity = price_entity
         self._total: float = 0.0
@@ -898,6 +907,7 @@ class AccumulatedRevenueSensor(
     Batterijverbruik Opbrengst – running total (Riemann sum of opbrengstrate).
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "EUR"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -916,7 +926,7 @@ class AccumulatedRevenueSensor(
         super().__init__(coordinator)
         self._attr_device_info = device_info
         self._attr_unique_id = f"{unique_id_prefix}_batterijverbruik_opbrengst"
-        self._attr_name = f"Batterijverbruik Opbrengst ({suffix})"
+        self._attr_name = "Batterijverbruik Opbrengst"
         self._hass = hass
         self._price_entity = price_entity
         self._total: float = 0.0
@@ -970,18 +980,22 @@ class MarstekFleetSensor(
 ):
     """Base class for fleet-wide aggregate sensors."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         coordinator: MarstekMultiDeviceCoordinator,
         key: str,
         name: str,
         entry_id: str,
+        device_info: DeviceInfo,
         **kwargs: Any,
     ) -> None:
         super().__init__(coordinator)
         self._key = key
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_fleet_{key}"
+        self._attr_device_info = device_info
         for k, v in kwargs.items():
             setattr(self, f"_attr_{k}", v)
 
@@ -1071,6 +1085,7 @@ class TotalBeschikbareKwhSensor(
 ):
     """Sum of beschikbare kWh across all devices."""
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
@@ -1082,11 +1097,13 @@ class TotalBeschikbareKwhSensor(
         multi_coordinator: MarstekMultiDeviceCoordinator,
         device_coordinators: dict[str, MarstekDataUpdateCoordinator],
         entry_id: str,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(multi_coordinator)
         self._device_coordinators = device_coordinators
         self._attr_unique_id = f"{entry_id}_fleet_beschikbare_kwh_totaal"
         self._attr_name = "Beschikbare kWh Totaal Marstek"
+        self._attr_device_info = device_info
 
     @property
     def native_value(self) -> float | None:
@@ -1111,6 +1128,7 @@ class HaBatteryChargeSolarShareSensor(
 ):
     """% of battery charge power coming from solar."""
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_icon = "mdi:solar-power"
@@ -1122,12 +1140,14 @@ class HaBatteryChargeSolarShareSensor(
         entry_id: str,
         hass: HomeAssistant,
         grid_power_entity: str | None,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_ha_battery_charge_solar_share"
         self._attr_name = "HA Battery Charge Solar Share"
         self._hass = hass
         self._grid_power_entity = grid_power_entity
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1157,6 +1177,7 @@ class HaBatteryChargeGridShareSensor(
 ):
     """% of battery charge power coming from the grid."""
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_icon = "mdi:transmission-tower"
@@ -1168,12 +1189,14 @@ class HaBatteryChargeGridShareSensor(
         entry_id: str,
         hass: HomeAssistant,
         grid_power_entity: str | None,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_ha_battery_charge_grid_share"
         self._attr_name = "HA Battery Charge Grid Share"
         self._hass = hass
         self._grid_power_entity = grid_power_entity
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1203,6 +1226,7 @@ class BatterijverbruikKostenTotaalSensor(
 ):
     """Sum of accumulated costs across all devices."""
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "EUR"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -1217,6 +1241,7 @@ class BatterijverbruikKostenTotaalSensor(
         hass: HomeAssistant,
         price_entity: str | None,
         cost_sensors: dict[str, AccumulatedCostSensor],
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_batterijverbruik_kosten_totaal"
@@ -1224,6 +1249,7 @@ class BatterijverbruikKostenTotaalSensor(
         self._hass = hass
         self._price_entity = price_entity
         self._cost_sensors = cost_sensors
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1241,6 +1267,7 @@ class BatterijverbruikOpbrengstTotaalSensor(
 ):
     """Sum of accumulated revenue across all devices."""
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "EUR"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -1255,6 +1282,7 @@ class BatterijverbruikOpbrengstTotaalSensor(
         hass: HomeAssistant,
         price_entity: str | None,
         revenue_sensors: dict[str, AccumulatedRevenueSensor],
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_batterijverbruik_opbrengst_totaal"
@@ -1262,6 +1290,7 @@ class BatterijverbruikOpbrengstTotaalSensor(
         self._hass = hass
         self._price_entity = price_entity
         self._revenue_sensors = revenue_sensors
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1283,6 +1312,7 @@ class StroomPrijsTotaalSensor(
     a weighted average for the current hour, exactly like the yaml template.
     """
 
+    _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "EUR/kWh"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -1297,6 +1327,7 @@ class StroomPrijsTotaalSensor(
         market_price_entity: str | None,
         energy_tax: float,
         procurement_fee: float,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry_id}_stroomprijs_totaal"
@@ -1305,6 +1336,7 @@ class StroomPrijsTotaalSensor(
         self._market_entity = market_price_entity
         self._energy_tax = energy_tax
         self._procurement_fee = procurement_fee
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1357,6 +1389,7 @@ class MarstekPlanSensor(
     Replicates the YAML template logic entirely in Python.
     """
 
+    _attr_has_entity_name = True
     _attr_icon = "mdi:calendar-clock"
 
     def __init__(
@@ -1372,6 +1405,7 @@ class MarstekPlanSensor(
         min_spread: float,
         max_charge_watts: int,
         max_discharge_watts: int,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         day = "morgen" if is_tomorrow else "vandaag"
@@ -1386,6 +1420,7 @@ class MarstekPlanSensor(
         self._min_spread = min_spread
         self._max_charge_watts = max_charge_watts
         self._max_discharge_watts = max_discharge_watts
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1482,6 +1517,7 @@ class MarstekPlanWattSensor(
     Useful for automations that set the battery power via a service call.
     """
 
+    _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -1500,6 +1536,7 @@ class MarstekPlanWattSensor(
         min_spread: float,
         max_charge_watts: int,
         max_discharge_watts: int,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         kind = "laad" if is_charge else "ontlaad"
@@ -1515,6 +1552,7 @@ class MarstekPlanWattSensor(
         self._min_spread = min_spread
         self._max_charge_watts = max_charge_watts
         self._max_discharge_watts = max_discharge_watts
+        self._attr_device_info = device_info
 
     @property
     def available(self) -> bool:
@@ -1668,40 +1706,40 @@ async def async_setup_entry(
         [
             TotalRatedCapacitySensor(
                 multi_coordinator, "total_rated_capacity_wh", "Totale Marstek Rated Capacity",
-                entry.entry_id
+                entry.entry_id, fleet_device_info
             ),
             TotalRemainingCapacitySensor(
                 multi_coordinator, "total_remaining_capacity_wh", "Totale Marstek Remaining Capacity",
-                entry.entry_id
+                entry.entry_id, fleet_device_info
             ),
             HaBatteryChargePowerTotalSensor(
                 multi_coordinator, "total_charge_power", "HA Battery Charge Power Total",
-                entry.entry_id
+                entry.entry_id, fleet_device_info
             ),
             HaBatteryDischargePowerTotalSensor(
                 multi_coordinator, "total_discharge_power", "HA Battery Discharge Power Total",
-                entry.entry_id
+                entry.entry_id, fleet_device_info
             ),
             HaBatteryPowerTotalSignedSensor(
                 multi_coordinator, "total_bat_power_signed", "HA Battery Power Total Signed",
-                entry.entry_id
+                entry.entry_id, fleet_device_info
             ),
             TotalBeschikbareKwhSensor(
-                multi_coordinator, device_coordinators, entry.entry_id
+                multi_coordinator, device_coordinators, entry.entry_id, fleet_device_info
             ),
             HaBatteryChargeSolarShareSensor(
-                multi_coordinator, entry.entry_id, hass, grid_power_entity
+                multi_coordinator, entry.entry_id, hass, grid_power_entity, fleet_device_info
             ),
             HaBatteryChargeGridShareSensor(
-                multi_coordinator, entry.entry_id, hass, grid_power_entity
+                multi_coordinator, entry.entry_id, hass, grid_power_entity, fleet_device_info
             ),
             BatterijverbruikKostenTotaalSensor(
                 multi_coordinator, device_coordinators, entry.entry_id,
-                hass, price_entity, cost_sensors
+                hass, price_entity, cost_sensors, fleet_device_info
             ),
             BatterijverbruikOpbrengstTotaalSensor(
                 multi_coordinator, device_coordinators, entry.entry_id,
-                hass, price_entity, revenue_sensors
+                hass, price_entity, revenue_sensors, fleet_device_info
             ),
         ]
     )
@@ -1715,7 +1753,7 @@ async def async_setup_entry(
         entities.append(
             StroomPrijsTotaalSensor(
                 multi_coordinator, entry.entry_id, hass,
-                market_entity, energy_tax, procurement_fee,
+                market_entity, energy_tax, procurement_fee, fleet_device_info,
             )
         )
 
@@ -1729,6 +1767,7 @@ async def async_setup_entry(
             min_spread=min_spread,
             max_charge_watts=max_charge_watts,
             max_discharge_watts=max_discharge_watts,
+            device_info=fleet_device_info,
         )
         entities.extend(
             [
