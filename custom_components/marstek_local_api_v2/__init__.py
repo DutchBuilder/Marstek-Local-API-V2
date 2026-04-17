@@ -1,6 +1,7 @@
 """Marstek Local API V2 – integration setup."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -81,6 +82,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # First data fetch
         try:
             await coord.async_config_entry_first_refresh()
+        except asyncio.CancelledError:
+            await client.disconnect()
+            raise
         except Exception as err:
             await client.disconnect()
             raise ConfigEntryNotReady(f"Initial data fetch failed for {ble_mac}") from err

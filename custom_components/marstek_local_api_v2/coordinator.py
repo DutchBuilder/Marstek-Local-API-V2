@@ -126,7 +126,9 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
                 self._missed[CATEGORY_MEDIUM] += 1
 
         # ── Slow tier: every 20th update (Device, WiFi, BLE) ─────────────
-        if self._update_count % UPDATE_TIER_SLOW == 0 or is_first:
+        # Not on first update: wifi/ble/device info is non-critical and
+        # the 3×15s UDP timeout would exceed HA's setup timeout budget.
+        if self._update_count % UPDATE_TIER_SLOW == 0:
             slow_ok = await self._update_slow(attempts)
             if slow_ok:
                 self._missed[CATEGORY_SLOW] = 0
@@ -149,6 +151,8 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 result = await getattr(self.client, coro_name)()
                 self._cache[cache_key] = result
+            except asyncio.CancelledError:
+                raise
             except Exception as err:
                 _LOGGER.debug("Fast update failed for %s: %s", cache_key, err)
                 ok = False
@@ -158,6 +162,8 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
         ok = True
         try:
             self._cache["em"] = await self.client.get_em_status()
+        except asyncio.CancelledError:
+            raise
         except Exception as err:
             _LOGGER.debug("Medium update failed for em: %s", err)
             ok = False
@@ -165,6 +171,8 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
         if self.device_model in MODELS_WITH_PV:
             try:
                 self._cache["pv"] = await self.client.get_pv_status()
+            except asyncio.CancelledError:
+                raise
             except Exception as err:
                 _LOGGER.debug("Medium update failed for pv: %s", err)
                 ok = False
@@ -181,6 +189,8 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 result = await getattr(self.client, coro_name)()
                 self._cache[cache_key] = result
+            except asyncio.CancelledError:
+                raise
             except Exception as err:
                 _LOGGER.debug("Slow update failed for %s: %s", cache_key, err)
                 ok = False
