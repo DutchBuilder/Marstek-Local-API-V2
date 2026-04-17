@@ -256,21 +256,29 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_name_devices(self, user_input: dict | None = None) -> FlowResult:
         if user_input is not None:
+            try:
+                for dev in self._selected_devices:
+                    mac_key = dev["ble_mac"].replace(":", "_")
+                    dev["device_name"] = user_input.get(f"name_{mac_key}", "")
+                return await self.async_step_options_initial()
+            except Exception:
+                _LOGGER.exception("Error in async_step_name_devices (submit)")
+                raise
+
+        try:
+            schema_fields: dict[Any, Any] = {}
             for dev in self._selected_devices:
-                mac_key = dev["ble_mac"].replace(":", "_")
-                dev["device_name"] = user_input.get(f"name_{mac_key}", "")
-            return await self.async_step_options_initial()
+                mac = dev["ble_mac"]
+                mac_key = mac.replace(":", "_")
+                schema_fields[vol.Optional(f"name_{mac_key}", default=f"Marstek {mac.replace(':', '')[-4:].upper()}")] = str
 
-        schema_fields: dict[Any, Any] = {}
-        for dev in self._selected_devices:
-            mac = dev["ble_mac"]
-            mac_key = mac.replace(":", "_")
-            schema_fields[vol.Optional(f"name_{mac_key}", default=f"Marstek {mac[-4:].upper()}")] = str
-
-        return self.async_show_form(
-            step_id="name_devices",
-            data_schema=vol.Schema(schema_fields),
-        )
+            return self.async_show_form(
+                step_id="name_devices",
+                data_schema=vol.Schema(schema_fields),
+            )
+        except Exception:
+            _LOGGER.exception("Error in async_step_name_devices (show)")
+            raise
 
     def _existing_options(self) -> dict:
         """Return options from the first existing config entry, if any."""
