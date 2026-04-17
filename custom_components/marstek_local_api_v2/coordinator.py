@@ -7,7 +7,7 @@ import time
 from datetime import timedelta
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MarstekUDPClient
@@ -210,60 +210,67 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
 
 class MarstekMultiDeviceCoordinator(DataUpdateCoordinator):
     """
-    Coordinator that manages multiple single-device coordinators and
-    produces aggregated data for fleet-wide sensors.
+    Domain-wide coordinator that aggregates data from ALL device coordinators.
+
+    One instance per HA domain (not per config entry).  Each config entry
+    calls add_device() to register its batteries; the coordinator pushes
+    fresh aggregated data to fleet sensors reactively on every device update.
 
     Data structure:
     {
-        "devices": {
-            ble_mac: <single-coordinator data dict>,
-            ...
-        },
+        "devices": { ble_mac: <device-coordinator data dict>, ... },
         "aggregates": {
             "total_rated_capacity_wh": float,
             "total_remaining_capacity_wh": float,
             "total_pv_power": float,
-            "total_ongrid_power": float,  # sum (+ = export, - = import)
+            "total_ongrid_power": float,
             "total_offgrid_power": float,
             "total_bat_power": float,
-            "total_charge_power": float,   # sum of positive bat_power per device
+            "total_charge_power": float,
             "total_discharge_power": float,
             "average_soc": float,
-            "total_dod": int,              # first device DOD (or average)
         }
     }
     """
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        device_coordinators: dict[str, MarstekDataUpdateCoordinator],
-        scan_interval: int = DEFAULT_SCAN_INTERVAL,
-    ) -> None:
+    def __init__(self, hass: HomeAssistant) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_multi",
-            update_interval=timedelta(seconds=scan_interval),
+            update_interval=None,  # purely reactive – updated via add_device listeners
         )
-        self.device_coordinators = device_coordinators  # ble_mac → coordinator
-        self._first_update = True
+        self.device_coordinators: dict[str, MarstekDataUpdateCoordinator] = {}
+        self._unsub_callbacks: dict[str, Any] = {}
 
-    async def _async_update_data(self) -> dict[str, Any]:
-        """Aggregate already-fetched data from each device coordinator."""
-        results: dict[str, Any] = {
+    def add_device(
+        self, ble_mac: str, coord: MarstekDataUpdateCoordinator
+    ) -> None:
+        """Register a device coordinator and subscribe to its updates."""
+        self.device_coordinators[ble_mac] = coord
+
+        @callback
+        def _on_update() -> None:
+            self.async_set_updated_data(self._build_data())
+
+        self._unsub_callbacks[ble_mac] = coord.async_add_listener(_on_update)
+
+    def remove_device(self, ble_mac: str) -> None:
+        """Unregister a device coordinator and unsubscribe from its updates."""
+        unsub = self._unsub_callbacks.pop(ble_mac, None)
+        if unsub:
+            unsub()
+        self.device_coordinators.pop(ble_mac, None)
+
+    def _build_data(self) -> dict[str, Any]:
+        results = {
             mac: coord.data or {}
             for mac, coord in self.device_coordinators.items()
         }
+        return {"devices": results, "aggregates": self._compute_aggregates(results)}
 
-        aggregates = self._compute_aggregates(results)
-
-        if self._first_update:
-            self._first_update = False
-            if not any(results.values()):
-                raise UpdateFailed("No device data received on first update")
-
-        return {"devices": results, "aggregates": aggregates}
+    async def _async_update_data(self) -> dict[str, Any]:
+        return self._build_data()
 
     def _compute_aggregates(
         self, devices: dict[str, dict[str, Any]]
