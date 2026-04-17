@@ -257,13 +257,15 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_name_devices(self, user_input: dict | None = None) -> FlowResult:
         if user_input is not None:
             for dev in self._selected_devices:
-                dev["device_name"] = user_input.get(f"name_{dev['ble_mac']}", "")
+                mac_key = dev["ble_mac"].replace(":", "_")
+                dev["device_name"] = user_input.get(f"name_{mac_key}", "")
             return await self.async_step_options_initial()
 
         schema_fields: dict[Any, Any] = {}
         for dev in self._selected_devices:
             mac = dev["ble_mac"]
-            schema_fields[vol.Optional(f"name_{mac}", default=f"Marstek {mac[-4:].upper()}")] = str
+            mac_key = mac.replace(":", "_")
+            schema_fields[vol.Optional(f"name_{mac_key}", default=f"Marstek {mac[-4:].upper()}")] = str
 
         return self.async_show_form(
             step_id="name_devices",
