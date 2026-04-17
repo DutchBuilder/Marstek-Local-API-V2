@@ -129,7 +129,7 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 default=current.get(CONF_MAX_CHARGE_WATTS, DEFAULT_MAX_CHARGE_WATTS),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=100, max=800, step=50,
+                    min=100, max=2500, step=50,
                     unit_of_measurement="W per batterij", mode="slider",
                 )
             ),
@@ -139,7 +139,7 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 default=current.get(CONF_MAX_DISCHARGE_WATTS, DEFAULT_MAX_DISCHARGE_WATTS),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=100, max=800, step=50,
+                    min=100, max=2500, step=50,
                     unit_of_measurement="W per batterij", mode="slider",
                 )
             ),
