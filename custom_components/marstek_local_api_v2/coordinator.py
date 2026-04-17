@@ -242,18 +242,11 @@ class MarstekMultiDeviceCoordinator(DataUpdateCoordinator):
         self._first_update = True
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Refresh all device coordinators, then aggregate."""
-        tasks = {
-            mac: asyncio.create_task(coord._async_update_data())
+        """Aggregate already-fetched data from each device coordinator."""
+        results: dict[str, Any] = {
+            mac: coord.data or {}
             for mac, coord in self.device_coordinators.items()
         }
-        results: dict[str, Any] = {}
-        for mac, task in tasks.items():
-            try:
-                results[mac] = await task
-            except UpdateFailed as err:
-                _LOGGER.warning("Device %s update failed: %s", mac, err)
-                results[mac] = self.device_coordinators[mac].data or {}
 
         aggregates = self._compute_aggregates(results)
 
