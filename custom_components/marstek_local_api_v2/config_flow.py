@@ -88,7 +88,7 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 default=current.get(CONF_ENERGY_TAX, DEFAULT_ENERGY_TAX),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=0.0, max=0.5, step=0.0001,
+                    min=0.0, max=0.5, step=0.001,
                     unit_of_measurement="€/kWh", mode="box",
                 )
             ),
@@ -98,7 +98,7 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 default=current.get(CONF_PROCUREMENT_FEE, DEFAULT_PROCUREMENT_FEE),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=0.0, max=0.10, step=0.0001,
+                    min=0.0, max=0.10, step=0.001,
                     unit_of_measurement="€/kWh", mode="box",
                 )
             ),
