@@ -228,9 +228,13 @@ class MarstekConfigFlow(ConfigFlow, domain=DOMAIN):
             port = user_input.get(CONF_PORT, DEFAULT_PORT)
             try:
                 info = await validate_connection(host, port)
+                # When device doesn't support Marstek.GetDevice (older firmware),
+                # validate_connection returns {} — use host as ble_mac fallback
+                # so the unique_id is still unique per device.
+                ble_mac = info.get("ble_mac") or host.replace(".", "_")
                 self._selected_devices = [
                     {
-                        "ble_mac": info.get("ble_mac", "unknown"),
+                        "ble_mac": ble_mac,
                         "wifi_mac": info.get("wifi_mac", ""),
                         "device": info.get("device", "Unknown"),
                         "ver": info.get("ver", 0),

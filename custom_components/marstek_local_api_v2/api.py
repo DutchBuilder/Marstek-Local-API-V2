@@ -371,10 +371,25 @@ def _discover_blocking(port: int, timeout: float) -> list[dict[str, Any]]:
 
 
 async def validate_connection(host: str, port: int) -> dict[str, Any]:
-    """Validate connectivity and return device info."""
+    """Validate connectivity and return device info.
+
+    Tries Marstek.GetDevice first (Rev 2.0).  Older firmware (e.g. Venus E2)
+    may not respond to that command; falls back to Bat.GetStatus to confirm
+    the device is reachable.  Returns an empty dict on fallback — the caller
+    must handle missing fields (ble_mac, device, ver) gracefully.
+    """
     client = MarstekUDPClient(host, port)
     try:
         await client.connect()
-        return await client.get_device_info()
+        try:
+            return await client.get_device_info(timeout=8.0, max_attempts=1)
+        except Exception as err:
+            _LOGGER.debug(
+                "Marstek.GetDevice failed for %s:%d (%s) – trying Bat.GetStatus",
+                host, port, err,
+            )
+            # Confirm the device is reachable; ignore the bat data itself.
+            await client.get_bat_status(timeout=8.0, max_attempts=1)
+            return {}
     finally:
         await client.disconnect()
