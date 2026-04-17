@@ -373,23 +373,53 @@ def _discover_blocking(port: int, timeout: float) -> list[dict[str, Any]]:
 async def validate_connection(host: str, port: int) -> dict[str, Any]:
     """Validate connectivity and return device info.
 
-    Tries Marstek.GetDevice first (Rev 2.0).  Older firmware (e.g. Venus E2)
-    may not respond to that command; falls back to Bat.GetStatus to confirm
-    the device is reachable.  Returns an empty dict on fallback — the caller
-    must handle missing fields (ble_mac, device, ver) gracefully.
+    Tries several Rev 2.0 commands in order.  If none elicit a valid
+    response, falls back to a raw probe: sends a packet and accepts
+    ANY bytes back (regardless of format).  This handles devices with
+    older firmware (e.g. Venus E2) that may use a different protocol.
+
+    Returns device-info dict on success, {} when reachable but protocol
+    doesn't match, or raises if the device is truly unreachable.
     """
     client = MarstekUDPClient(host, port)
+    loop = asyncio.get_running_loop()
     try:
         await client.connect()
+
+        # ── Try structured commands ──────────────────────────────────────
+        for coro, label in [
+            (lambda: client.get_device_info(timeout=5.0, max_attempts=1), "GetDevice"),
+            (lambda: client.get_bat_status(timeout=5.0, max_attempts=1),  "BatStatus"),
+            (lambda: client.get_es_status(timeout=5.0, max_attempts=1),   "EsStatus"),
+        ]:
+            try:
+                result = await coro()
+                _LOGGER.debug("validate_connection %s:%d OK via %s", host, port, label)
+                return result
+            except Exception as err:
+                _LOGGER.warning(
+                    "validate_connection %s:%d – %s failed: %s", host, port, label, err
+                )
+
+        # ── Raw probe: accept any UDP packet from the device ─────────────
+        # Some older firmware variants respond with a non-standard format.
+        # Logging the raw bytes helps identify the protocol.
+        probe = json.dumps(
+            {"id": 1, "method": METHOD_GET_DEVICE, "params": {"ble_mac": "0"}}
+        ).encode()
+        client._sock.sendto(probe, (host, port))
         try:
-            return await client.get_device_info(timeout=8.0, max_attempts=1)
-        except Exception as err:
-            _LOGGER.debug(
-                "Marstek.GetDevice failed for %s:%d (%s) – trying Bat.GetStatus",
-                host, port, err,
+            raw, _ = await asyncio.wait_for(
+                loop.sock_recvfrom(client._sock, 4096), timeout=5.0
             )
-            # Confirm the device is reachable; ignore the bat data itself.
-            await client.get_bat_status(timeout=8.0, max_attempts=1)
+            _LOGGER.warning(
+                "validate_connection %s:%d – raw response (unknown protocol): %s",
+                host, port, raw[:200],
+            )
             return {}
+        except asyncio.TimeoutError:
+            pass
+
+        raise OSError(f"No UDP response from {host}:{port} – device unreachable or wrong port")
     finally:
         await client.disconnect()
