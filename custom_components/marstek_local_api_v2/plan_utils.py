@@ -52,7 +52,8 @@ def compute_plan(
     items: list[dict] = []
     for x in prices_raw:
         try:
-            st = datetime.fromisoformat(x["from"]).astimezone()
+            from_val = x["from"]
+            st = (from_val if isinstance(from_val, datetime) else datetime.fromisoformat(from_val)).astimezone()
             if st.date() == target_date:
                 p = (float(x.get("price", 0)) + energy_tax + procurement_fee) * btw
                 items.append({"st": st, "p": p})

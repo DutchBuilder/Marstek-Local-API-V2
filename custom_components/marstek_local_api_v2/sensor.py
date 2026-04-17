@@ -1359,9 +1359,11 @@ class StroomPrijsTotaalSensor(
         total_secs = 0.0
         for item in prices:
             try:
-                st = datetime.fromisoformat(item["from"]).timestamp()
-                en = datetime.fromisoformat(item["till"]).timestamp()
-            except (KeyError, ValueError):
+                from_val = item["from"]
+                till_val = item["till"]
+                st = (from_val if isinstance(from_val, datetime) else datetime.fromisoformat(from_val)).timestamp()
+                en = (till_val if isinstance(till_val, datetime) else datetime.fromisoformat(till_val)).timestamp()
+            except (KeyError, ValueError, TypeError):
                 continue
             os = max(st, hs)
             oe = min(en, he)
