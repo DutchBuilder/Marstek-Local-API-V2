@@ -57,8 +57,9 @@ class MarstekUDPClient:
     async def connect(self) -> None:
         if self._sock is None:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            # No bind to a fixed port — OS assigns a unique ephemeral source port
-            # so responses from different devices go to different sockets.
+            # Non-blocking so the event loop can use it with sock_recvfrom.
+            # No fixed bind — OS assigns a unique ephemeral source port per device.
+            sock.setblocking(False)
             self._sock = sock
             _LOGGER.debug("UDP socket opened for %s:%d", self.host, self.port)
 
@@ -79,7 +80,7 @@ class MarstekUDPClient:
         timeout: float = COMMAND_TIMEOUT,
         max_attempts: int = MAX_RETRIES,
     ) -> dict[str, Any]:
-        """Send a UDP command and wait for the matching response."""
+        """Send a UDP command and wait for the matching response (native async)."""
         if self._sock is None:
             await self.connect()
 
@@ -88,23 +89,46 @@ class MarstekUDPClient:
             {"id": msg_id, "method": method, "params": params}
         ).encode()
 
-        host = self.host
-        port = self.port
-        sock = self._sock
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         backoff = COMMAND_BACKOFF_BASE
 
         for attempt in range(max_attempts):
             try:
-                # Run the blocking send+receive in a thread executor so we
-                # don't block the event loop.
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: _transact(sock, payload, host, port, msg_id, timeout),
-                )
-                return result
+                self._sock.sendto(payload, (self.host, self.port))
+                deadline = loop.time() + timeout
 
-            except (socket.timeout, TimeoutError, OSError) as err:
+                while True:
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError(
+                            f"No response for id={msg_id} from {self.host}:{self.port}"
+                        )
+                    # Cooperative receive: yields to the event loop every 2 s so
+                    # HA task cancellation is never blocked by a hanging socket.
+                    try:
+                        data, _ = await asyncio.wait_for(
+                            loop.sock_recvfrom(self._sock, 4096),
+                            timeout=min(remaining, 2.0),
+                        )
+                    except asyncio.TimeoutError:
+                        continue  # keep waiting within the deadline
+
+                    try:
+                        response = json.loads(data)
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+
+                    if response.get("id") != msg_id:
+                        continue  # stale packet from another command / device
+
+                    if "error" in response:
+                        raise ValueError(
+                            f"API error {response['error'].get('code')}: "
+                            f"{response['error'].get('message')}"
+                        )
+                    return response.get("result", {})
+
+            except asyncio.TimeoutError as err:
                 if attempt < max_attempts - 1:
                     jitter = random.uniform(
                         -COMMAND_BACKOFF_JITTER, COMMAND_BACKOFF_JITTER
@@ -112,20 +136,16 @@ class MarstekUDPClient:
                     wait = min(backoff + jitter, COMMAND_BACKOFF_MAX)
                     _LOGGER.debug(
                         "Timeout attempt %d/%d for %s@%s – retry in %.1fs",
-                        attempt + 1,
-                        max_attempts,
-                        method,
-                        host,
-                        wait,
+                        attempt + 1, max_attempts, method, self.host, wait,
                     )
                     await asyncio.sleep(wait)
                     backoff = min(backoff * COMMAND_BACKOFF_FACTOR, COMMAND_BACKOFF_MAX)
                 else:
                     raise asyncio.TimeoutError(
-                        f"All {max_attempts} attempts timed out for {method}@{host}"
+                        f"All {max_attempts} attempts timed out for {method}@{self.host}"
                     ) from err
 
-            except Exception as err:
+            except OSError as err:
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(RETRY_DELAY)
                 else:
@@ -137,29 +157,29 @@ class MarstekUDPClient:
     # Query commands                                                       #
     # ------------------------------------------------------------------ #
 
-    async def get_device_info(self, ble_mac: str = "0") -> dict[str, Any]:
-        return await self._send_command(METHOD_GET_DEVICE, {"ble_mac": ble_mac})
+    async def get_device_info(self, ble_mac: str = "0", timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_GET_DEVICE, {"ble_mac": ble_mac}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_wifi_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_WIFI_STATUS, {"id": 0})
+    async def get_wifi_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_WIFI_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_ble_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_BLE_STATUS, {"id": 0})
+    async def get_ble_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_BLE_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_bat_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_BAT_STATUS, {"id": 0})
+    async def get_bat_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_BAT_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_pv_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_PV_STATUS, {"id": 0})
+    async def get_pv_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_PV_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_es_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_ES_STATUS, {"id": 0})
+    async def get_es_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_ES_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_es_mode(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_ES_GET_MODE, {"id": 0})
+    async def get_es_mode(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_ES_GET_MODE, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
-    async def get_em_status(self) -> dict[str, Any]:
-        return await self._send_command(METHOD_EM_STATUS, {"id": 0})
+    async def get_em_status(self, timeout: float = COMMAND_TIMEOUT, max_attempts: int = MAX_RETRIES) -> dict[str, Any]:
+        return await self._send_command(METHOD_EM_STATUS, {"id": 0}, timeout=timeout, max_attempts=max_attempts)
 
     # ------------------------------------------------------------------ #
     # Set commands                                                         #

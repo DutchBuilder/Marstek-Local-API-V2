@@ -106,12 +106,13 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
         is_first = self._first_update
         self._first_update = False
 
-        _timeout = 8.0 if is_first else 15.0
-        attempts = 1 if is_first else 3
+        # First refresh: single attempt, short timeout to stay within HA's 60s setup budget.
+        cmd_timeout = 8.0 if is_first else 15.0
+        cmd_attempts = 1 if is_first else 3
 
         # ── Fast tier: every update (Bat, ES.GetStatus, ES.GetMode) ──────
         if self._update_count % UPDATE_TIER_FAST == 0:
-            fast_ok = await self._update_fast(attempts)
+            fast_ok = await self._update_fast(cmd_attempts, cmd_timeout)
             if fast_ok:
                 self._missed[CATEGORY_FAST] = 0
             else:
@@ -119,17 +120,16 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
 
         # ── Medium tier: every 10th update (EM, PV) ──────────────────────
         if self._update_count % UPDATE_TIER_MEDIUM == 0:
-            medium_ok = await self._update_medium(attempts)
+            medium_ok = await self._update_medium(cmd_attempts, cmd_timeout)
             if medium_ok:
                 self._missed[CATEGORY_MEDIUM] = 0
             else:
                 self._missed[CATEGORY_MEDIUM] += 1
 
         # ── Slow tier: every 20th update (Device, WiFi, BLE) ─────────────
-        # Not on first update: wifi/ble/device info is non-critical and
-        # the 3×15s UDP timeout would exceed HA's setup timeout budget.
+        # Not on first update: wifi/ble/device info is non-critical.
         if self._update_count % UPDATE_TIER_SLOW == 0:
-            slow_ok = await self._update_slow(attempts)
+            slow_ok = await self._update_slow(cmd_attempts, cmd_timeout)
             if slow_ok:
                 self._missed[CATEGORY_SLOW] = 0
             else:
@@ -141,7 +141,7 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
 
         return dict(self._cache)
 
-    async def _update_fast(self, attempts: int) -> bool:
+    async def _update_fast(self, attempts: int, timeout: float) -> bool:
         ok = True
         for coro_name, cache_key in [
             ("get_bat_status", "bat"),
@@ -149,7 +149,9 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
             ("get_es_mode", "mode"),
         ]:
             try:
-                result = await getattr(self.client, coro_name)()
+                result = await getattr(self.client, coro_name)(
+                    timeout=timeout, max_attempts=attempts
+                )
                 self._cache[cache_key] = result
             except asyncio.CancelledError:
                 raise
@@ -158,10 +160,12 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
                 ok = False
         return ok
 
-    async def _update_medium(self, attempts: int) -> bool:
+    async def _update_medium(self, attempts: int, timeout: float) -> bool:
         ok = True
         try:
-            self._cache["em"] = await self.client.get_em_status()
+            self._cache["em"] = await self.client.get_em_status(
+                timeout=timeout, max_attempts=attempts
+            )
         except asyncio.CancelledError:
             raise
         except Exception as err:
@@ -170,7 +174,9 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
 
         if self.device_model in MODELS_WITH_PV:
             try:
-                self._cache["pv"] = await self.client.get_pv_status()
+                self._cache["pv"] = await self.client.get_pv_status(
+                    timeout=timeout, max_attempts=attempts
+                )
             except asyncio.CancelledError:
                 raise
             except Exception as err:
@@ -179,7 +185,7 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
 
         return ok
 
-    async def _update_slow(self, attempts: int) -> bool:
+    async def _update_slow(self, attempts: int, timeout: float) -> bool:
         ok = True
         for coro_name, cache_key in [
             ("get_device_info", "device"),
@@ -187,7 +193,9 @@ class MarstekDataUpdateCoordinator(DataUpdateCoordinator):
             ("get_ble_status", "ble"),
         ]:
             try:
-                result = await getattr(self.client, coro_name)()
+                result = await getattr(self.client, coro_name)(
+                    timeout=timeout, max_attempts=attempts
+                )
                 self._cache[cache_key] = result
             except asyncio.CancelledError:
                 raise
