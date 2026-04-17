@@ -1694,7 +1694,15 @@ async def async_setup_entry(
         )
 
     # ── Fleet-wide sensors ────────────────────────────────────────────────
-    # Build fleet device_info (virtual "fleet" device)
+    # Only the entry that owns plan sensors creates fleet entities.
+    # This avoids duplicate "Marstek Fleet" devices when batteries are added
+    # one by one as separate config entries.
+    is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
+
+    if not is_plan_entry:
+        async_add_entities(entities)
+        return
+
     fleet_device_info = DeviceInfo(
         identifiers={(DOMAIN, f"{entry.entry_id}_fleet")},
         name="Marstek Fleet",
@@ -1744,12 +1752,8 @@ async def async_setup_entry(
         ]
     )
 
-    # Plan sensors are created only by the first config entry that claims ownership.
-    # This prevents duplicate plan/price sensors when batteries are added one by one.
-    is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
-
-    # Stroomprijs totaal (only if market price entity configured and this is the plan entry)
-    if market_entity and is_plan_entry:
+    # Stroomprijs totaal (only if market price entity configured)
+    if market_entity:
         entities.append(
             StroomPrijsTotaalSensor(
                 multi_coordinator, entry.entry_id, hass,
@@ -1757,8 +1761,7 @@ async def async_setup_entry(
             )
         )
 
-    # Marstek plan sensors (only if market price entity configured and this is the plan entry)
-    if market_entity and is_plan_entry:
+    if market_entity:
         _plan_kwargs = dict(
             market_price_entity=market_entity,
             energy_tax=energy_tax,
