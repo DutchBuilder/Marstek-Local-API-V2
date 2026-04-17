@@ -37,6 +37,8 @@ from .plan_utils import compute_plan, is_current_hour_in_slots
 class MarstekBinarySensor(
     CoordinatorEntity[MarstekDataUpdateCoordinator], BinarySensorEntity
 ):
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         coordinator: MarstekDataUpdateCoordinator,
@@ -82,6 +84,8 @@ class _MarstekPlanSlotSensor(
 ):
     """Base for 'moet nu laden/ontladen' binary sensors."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         coordinator: MarstekMultiDeviceCoordinator,
@@ -97,12 +101,14 @@ class _MarstekPlanSlotSensor(
         max_discharge_watts: int,
         num_batteries: int,
         capacity_kwh: float,
+        device_info: DeviceInfo,
     ) -> None:
         super().__init__(coordinator)
         kind = "laden" if is_charge else "ontladen"
         self._attr_unique_id = f"{entry_id}_marstek_moet_nu_{kind}"
-        self._attr_name = f"Marstek moet nu {kind}"
+        self._attr_name = f"Moet nu {kind}"
         self._attr_icon = "mdi:battery-charging" if is_charge else "mdi:battery-arrow-down"
+        self._attr_device_info = device_info
         self._hass = hass
         self._is_charge = is_charge
         self._market_entity = market_entity
@@ -177,7 +183,6 @@ async def async_setup_entry(
         info = devices_info.get(ble_mac, {})
         model = info.get("device_model", "Unknown")
         device_name = info.get("device_name") or f"Marstek {ble_mac[-4:].upper()}"
-        suffix = ble_mac[-4:].upper()
 
         device_info = DeviceInfo(
             identifiers={(DOMAIN, ble_mac)},
@@ -192,7 +197,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="charg_flag",
-                name=f"Charging Allowed ({suffix})",
+                name="Charging Allowed",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_charg_flag",
                 device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
@@ -207,7 +212,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="dischrg_flag",
-                name=f"Discharging Allowed ({suffix})",
+                name="Discharging Allowed",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_dischrg_flag",
                 icon_on="mdi:battery-arrow-down",
@@ -221,7 +226,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="is_charging",
-                name=f"Battery Charging ({suffix})",
+                name="Battery Charging",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_is_charging",
                 device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
@@ -236,7 +241,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="is_discharging",
-                name=f"Battery Discharging ({suffix})",
+                name="Battery Discharging",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_is_discharging",
                 icon_on="mdi:battery-arrow-up",
@@ -250,7 +255,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="ct_connected",
-                name=f"CT Connected ({suffix})",
+                name="CT Connected",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_ct_connected",
                 device_class=BinarySensorDeviceClass.CONNECTIVITY,
@@ -265,7 +270,7 @@ async def async_setup_entry(
             MarstekBinarySensor(
                 coord,
                 key="ble_connected",
-                name=f"Bluetooth Connected ({suffix})",
+                name="Bluetooth Connected",
                 device_info=device_info,
                 unique_id=f"{uid_prefix}_ble_connected",
                 device_class=BinarySensorDeviceClass.CONNECTIVITY,
@@ -277,6 +282,13 @@ async def async_setup_entry(
 
     # ── Fleet-wide plan binary sensors (only when market price entity configured
     #    and this entry owns the plan sensors) ────────────────────────────────
+    fleet_device_info = DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_fleet")},
+        name="Marstek Fleet",
+        manufacturer="Marstek",
+        model="Multi-device",
+    )
+
     is_plan_entry = hass.data[DOMAIN].get(PLAN_SENSORS_ENTRY_KEY) == entry.entry_id
     if market_entity and is_plan_entry:
         agg = multi_coordinator.get_aggregates()
@@ -294,6 +306,7 @@ async def async_setup_entry(
             max_discharge_watts=max_discharge_watts,
             num_batteries=num_batteries,
             capacity_kwh=capacity_kwh,
+            device_info=fleet_device_info,
         )
         entities.append(MarstekMoetNuLadenSensor(multi_coordinator, entry.entry_id, hass, **_plan_kwargs))
         entities.append(MarstekMoetNuOntladenSensor(multi_coordinator, entry.entry_id, hass, **_plan_kwargs))
