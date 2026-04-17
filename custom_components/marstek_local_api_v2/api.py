@@ -397,8 +397,27 @@ async def validate_connection(host: str, port: int) -> dict[str, Any]:
     Returns device-info dict on success, {} when reachable but protocol
     doesn't match, or raises OSError if the device is truly unreachable.
     """
-    client = MarstekUDPClient(host, port)
+    # ── Blocking-socket sanity check (runs in executor, same as old approach) ─
+    # Helps diagnose whether async sock_recvfrom or network path is the issue.
+    def _blocking_probe() -> str:
+        import socket as _socket
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        s.settimeout(5.0)
+        payload = json.dumps({"id": 1, "method": METHOD_BAT_STATUS, "params": {"id": 0}}).encode()
+        s.sendto(payload, (host, port))
+        try:
+            data, addr = s.recvfrom(4096)
+            return f"OK from {addr}: {data[:80]}"
+        except _socket.timeout:
+            return "TIMEOUT"
+        finally:
+            s.close()
+
     loop = asyncio.get_running_loop()
+    result_str = await loop.run_in_executor(None, _blocking_probe)
+    _LOGGER.warning("validate_connection %s:%d – blocking probe: %s", host, port, result_str)
+
+    client = MarstekUDPClient(host, port)
     _LOGGER.debug("validate_connection: connecting to %s:%d", host, port)
     try:
         await client.connect()
